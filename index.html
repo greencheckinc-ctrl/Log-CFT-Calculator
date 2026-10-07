@@ -416,7 +416,7 @@ function calc(size){return calcM(size,MODE)}
 const rows = document.getElementById('rows');
 function addRow(size='',after=null){
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td class="idx"></td><td><input value="'+size+'" inputmode="text" aria-label="Size"></td><td class="num cft">-</td><td class="num cft2"></td><td class="act"><button class="ghost plus" type="button" aria-label="Add row below">+</button><button class="ghost del" type="button" aria-label="Remove row">x</button></td>';
+  tr.innerHTML = '<td class="idx"></td><td><input value="'+size+'" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" aria-label="Size"></td><td class="num cft">-</td><td class="num cft2"></td><td class="act"><button class="ghost plus" type="button" aria-label="Add row below">+</button><button class="ghost del" type="button" aria-label="Remove row">x</button></td>';
   const inp=tr.querySelector('input');
   inp.addEventListener('input',update);
   inp.addEventListener('blur',()=>{inp.value=normalize(inp.value);update()});
