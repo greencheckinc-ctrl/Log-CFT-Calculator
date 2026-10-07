@@ -24,7 +24,26 @@ function applyTheme(k){
   const t=THEMES[k]||THEMES.green, r=document.documentElement.style;
   r.setProperty('--wood',t.c);r.setProperty('--dark',t.d);r.setProperty('--soft',t.s);r.setProperty('--line',t.l);r.setProperty('--bg',t.b);
   const m=document.querySelector('meta[name=theme-color]'); if(m) m.content=t.c;
+  window.__th=t; updateIcons();
 }
+// Tab icon / home-screen icon follow the theme colour
+function updateIcons(){
+  try{
+    const t=window.__th, sv=document.querySelector('.apphead .logo'); if(!t||!sv) return;
+    let x=new XMLSerializer().serializeToString(sv.cloneNode(true));
+    x=x.replace(/var\(--wood\)/g,t.c).replace(/var\(--dark\)/g,t.d).replace(/var\(--soft\)/g,t.s)
+       .replace('<svg','<svg width="512" height="512"').replace(/class="logo"/,'');
+    if(x.indexOf('xmlns=')<0) x=x.replace('<svg','<svg xmlns="http://www.w3.org/2000/svg"');
+    const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(x);
+    const ic=document.querySelector('link[rel=icon]'); if(ic){ic.type='image/svg+xml';ic.removeAttribute('sizes');ic.href=url;}
+    const img=new Image(); img.onload=function(){
+      const c=document.createElement('canvas'); c.width=c.height=180;
+      c.getContext('2d').drawImage(img,0,0,180,180);
+      const ap=document.querySelector('link[rel=apple-touch-icon]'); if(ap) ap.href=c.toDataURL('image/png');
+    }; img.src=url;
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',updateIcons);
 try{applyTheme(localStorage.getItem(THEMEKEY)||'green')}catch(e){applyTheme('green')}
 </script>
 <title>Log CFT/CBM Calculator</title>
@@ -164,9 +183,32 @@ body.round .th2,body.round .cft2{display:table-cell}
   #sheet{display:block!important}
   body{background:#fff;padding:0;max-width:none}
 }
+
+/* Splash screen */
+#splash{position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,var(--wood),var(--dark));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s ease,visibility .5s}
+#splash.hide{opacity:0;visibility:hidden}
+#splash .splogo{width:140px;height:140px;border-radius:32px;border:3px solid rgba(255,255,255,.6);box-shadow:0 10px 30px rgba(0,0,0,.35);animation:spin .7s ease-out both}
+#splash h1{margin:0;color:#fff;font-size:1.7rem;font-weight:700;text-align:center;padding:0 20px;animation:spup .7s .2s ease-out both}
+#splash .by{color:rgba(255,255,255,.85);font-size:.85rem;animation:spup .7s .35s ease-out both}
+@keyframes spin{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes spup{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
+<div id="splash" aria-hidden="true">
+  <svg class="splogo" viewBox="0 0 512 512" aria-hidden="true">
+    <defs><linearGradient id="lgbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--wood)"/><stop offset="1" style="stop-color:var(--dark)"/></linearGradient></defs>
+    <rect width="512" height="512" fill="url(#lgbg2)"/>
+    <circle cx="256" cy="232" r="132" fill="#5e3b1c"/>
+    <circle cx="256" cy="232" r="120" fill="#e0ad6c"/>
+    <g fill="none" stroke="#b9803f" stroke-width="6"><circle cx="256" cy="232" r="98"/><circle cx="256" cy="232" r="76"/><circle cx="256" cy="232" r="54"/><circle cx="256" cy="232" r="32"/></g>
+    <circle cx="256" cy="232" r="10" fill="#8a5a2b"/>
+    <rect x="124" y="388" width="264" height="54" rx="10" style="fill:var(--soft)"/>
+    <g style="stroke:var(--dark)" stroke-width="5" stroke-linecap="round"><line x1="148" y1="388" x2="148" y2="420"/><line x1="181" y1="388" x2="181" y2="408"/><line x1="214" y1="388" x2="214" y2="420"/><line x1="247" y1="388" x2="247" y2="408"/><line x1="280" y1="388" x2="280" y2="420"/><line x1="313" y1="388" x2="313" y2="408"/><line x1="346" y1="388" x2="346" y2="420"/><line x1="379" y1="388" x2="379" y2="408"/></g>
+  </svg>
+  <h1>Log CFT/CBM Calculator</h1>
+  <div class="by">Developed by GreenCheck inc.</div>
+</div>
 <header class="apphead">
   <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
     <defs><linearGradient id="lgbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--wood)"/><stop offset="1" style="stop-color:var(--dark)"/></linearGradient></defs>
@@ -471,7 +513,7 @@ function getList(){
   return [...rows.querySelectorAll('input')].map(i=>i.value.trim()).filter(v=>v);
 }
 function sortKey(v){
-  if(MODE==='round'){const r=parseRound(v);return r?[r.m,r.g,0]:[1e9,0,0]}
+  if(MODE==="round"){const r=parseRound(v);return r?[parseFloat(r.L),r.g,0]:[1e9,0,0]} // sort by typed length: 20,30..99,100..200
   const p=parseSize(v); if(!p) return [1e9,0,0];
   return [p.a,p.b,lengthFt(p.code)];
 }
@@ -1077,6 +1119,11 @@ document.getElementById('pp-go').onclick=()=>{
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 }
+</script>
+<script>
+(function(){var sp=document.getElementById('splash');if(!sp)return;
+function go(){sp.classList.add('hide');setTimeout(function(){sp.remove()},600)}
+setTimeout(go,1800);})();
 </script>
 </body>
 </html>
