@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f6b45">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Log CFT">
+<script>
+const THEMES={
+  green:{n:'Forest Green',c:'#1f6b45',d:'#164f33',s:'#e4f1ea',l:'#cddbd3',b:'#f3f7f4'},
+  brown:{n:'Wood Brown',c:'#7a4a21',d:'#58340f',s:'#f6ead6',l:'#d6c9b3',b:'#f3efe6'},
+  blue:{n:'Ocean Blue',c:'#1e5aa8',d:'#143f78',s:'#e6eef9',l:'#cbd7e8',b:'#f3f6fb'},
+  teal:{n:'Teal',c:'#0f766e',d:'#0a524c',s:'#e0f2f0',l:'#c5dedb',b:'#f1f7f6'},
+  purple:{n:'Royal Purple',c:'#5b3cc4',d:'#41299a',s:'#eee9fb',l:'#d8d0f0',b:'#f6f4fc'},
+  slate:{n:'Slate',c:'#334155',d:'#1e293b',s:'#e8ecf1',l:'#cfd6df',b:'#f4f5f7'}
+};
+const THEMEKEY='logcft_theme_v1';
+function applyTheme(k){
+  const t=THEMES[k]||THEMES.green, r=document.documentElement.style;
+  r.setProperty('--wood',t.c);r.setProperty('--dark',t.d);r.setProperty('--soft',t.s);r.setProperty('--line',t.l);r.setProperty('--bg',t.b);
+  const m=document.querySelector('meta[name=theme-color]'); if(m) m.content=t.c;
+}
+try{applyTheme(localStorage.getItem(THEMEKEY)||'green')}catch(e){applyTheme('green')}
+</script>
+<title>Log CFT Calculator</title>
+<style>
+:root{--bg:#f3f7f4;--ink:#1c2a24;--wood:#1f6b45;--dark:#164f33;--soft:#e4f1ea;--line:#cddbd3;--card:#ffffff;--muted:#5a6b63;--ok:#2f6b3a;--bad:#b3261e;--shadow:0 1px 2px rgba(16,40,28,.06),0 4px 14px rgba(16,40,28,.06)}
+*{box-sizing:border-box}
+body{margin:0;font-family:Georgia,"Noto Sans Gujarati",serif;background:var(--bg);color:var(--ink);padding:16px;max-width:760px;margin-inline:auto}
+h1{font-size:1.5rem;margin:0 0 4px;color:var(--wood)}
+p.sub{margin:0 0 16px;font-size:.9rem}
+.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:.85rem;margin-bottom:4px}
+input[type=password],input[type=file]{width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff}
+button{background:var(--wood);color:#fff;border:0;padding:10px 16px;border-radius:4px;font-size:1rem;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid #c98b4b;outline-offset:2px}
+button.ghost{background:transparent;color:var(--bad);padding:4px 10px;font-size:1.1rem}
+button.ghost.plus{color:var(--ok);font-weight:700}
+td.act{white-space:nowrap;text-align:right}
+img#prev{max-width:100%;margin-top:8px;border-radius:4px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:4px;border-bottom:1px solid var(--line);text-align:left;font-size:.95rem}
+td input{width:8em;max-width:100%;padding:6px;border:1px solid var(--line);border-radius:3px;font:inherit}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.total{font-size:1.4rem;color:var(--wood);margin:8px 0}
+#prog{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:6px}
+#progbar{height:100%;width:0;background:var(--wood);transition:width .25s}
+#status{font-size:.9rem;min-height:1.2em}
+.err{color:var(--bad)}
+.files{list-style:none;margin:8px 0 0;padding:0}
+.files li{display:flex;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:6px 0}
+.files li.cur{background:#f6ead6}
+.files .nm{flex:1;min-width:0;overflow-wrap:anywhere}
+.files .meta{font-size:.8rem;opacity:.75}
+.files button{padding:6px 10px;font-size:.9rem}
+#fname{width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff;font:inherit}
+
+body{padding-top:0}
+.menubar{position:sticky;top:0;z-index:20;display:flex;gap:4px;background:#e9e4d8;border-bottom:1px solid var(--line);margin:0 -16px 12px;padding:2px 8px;font-family:"Segoe UI",Arial,sans-serif}
+.menu{position:static}
+.menu>button{background:#fff;color:var(--wood);border:2px solid var(--wood);padding:8px 18px;font:600 16px "Segoe UI",Arial,sans-serif;border-radius:6px;margin:4px 4px 4px 0}
+.menu>button:hover{background:#f6ead6}
+.menu>button[aria-expanded=true]{background:var(--wood);color:#fff}
+.dd{display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #b9ae98;box-shadow:2px 3px 8px rgba(0,0,0,.2);padding:3px 0}
+.dd.open{display:block}
+.dd button{display:flex;justify-content:space-between;gap:24px;width:100%;background:transparent;color:var(--ink);border-radius:0;padding:13px 16px;font:16px "Segoe UI",Arial,sans-serif;text-align:left}
+.dd button:hover,.dd button:focus-visible{background:#cfe0f5}
+.dd .sc{opacity:.6;font-size:12px}
+.dd hr{border:0;border-top:1px solid var(--line);margin:3px 0}
+dialog{border:1px solid #888;border-radius:6px;padding:0;max-width:92vw;width:420px;font-family:"Segoe UI",Arial,sans-serif;color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog .tb{background:#e9e4d8;padding:8px 12px;font-weight:600;border-bottom:1px solid var(--line)}
+dialog .bd{padding:12px}
+dialog .ft{display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid var(--line)}
+.statusbar{font:12px "Segoe UI",Arial,sans-serif;color:#555;margin:0 0 8px}
+tr.bad td:nth-child(2) input{border:2px solid var(--bad);background:#fde8e6;color:var(--bad);font-weight:700}
+tr.bad td.cft,tr.bad td.idx{font-weight:700;color:var(--bad)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.alt{background:#fff;color:var(--wood);border:1px solid var(--wood)}
+#sheet{display:none}
+.sheet h2{margin:0 0 6px;font-size:16px;text-align:center}
+.sheet .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #000}
+.sheet .col{border-right:1px solid #000}.sheet .col:last-child{border-right:0}
+.sheet table th,.sheet table td{border:1px solid #444;padding:1px 3px;font-size:11px;font-family:Arial,sans-serif}
+.sheet .tot{font-weight:bold;font-size:12px;padding:3px;border-top:1px solid #000;font-family:Arial,sans-serif}
+.sheet .grand{margin-top:6px;font:bold 14px Arial,sans-serif;text-align:right}
+
+/* ---- Professional look (theme colour driven by --wood / --dark / --soft) ---- */
+body{font-family:"Segoe UI",Roboto,"Noto Sans Gujarati","Helvetica Neue",Arial,sans-serif;line-height:1.45}
+h1{font-size:1.6rem;font-weight:700;letter-spacing:-.01em;color:var(--dark);margin:6px 0 2px}
+p.sub{color:var(--muted);font-size:.92rem}
+.menubar{background:linear-gradient(135deg,var(--dark),var(--wood));border-bottom:0;box-shadow:0 2px 8px rgba(0,0,0,.18);padding:4px 10px}
+.menu>button{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:8px 18px}
+.menu>button:hover{background:rgba(255,255,255,.26)}
+.menu>button[aria-expanded=true]{background:#fff;color:var(--dark)}
+.dd{border:0;border-radius:0 0 12px 12px;box-shadow:0 12px 24px rgba(0,0,0,.2)}
+.dd button:hover,.dd button:focus-visible{background:var(--soft)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px}
+button{border-radius:8px;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+button:hover{filter:brightness(1.08)}
+button.ghost{box-shadow:none;background:transparent}
+button.ghost:hover{background:var(--soft);filter:none}
+.alt{background:#fff;color:var(--wood);border:1px solid var(--wood);box-shadow:none}
+.alt:hover{background:var(--soft);filter:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--wood);outline-offset:2px}
+input[type=file],input[type=password],input[type=text],td input,#fname{border-radius:8px;border-color:var(--line)}
+input:focus{border-color:var(--wood)}
+label{color:var(--muted);font-weight:600;font-size:.82rem}
+th{background:var(--soft);color:var(--dark);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;padding:8px 6px}
+th:first-child{border-radius:8px 0 0 8px}th:last-child{border-radius:0 8px 8px 0}
+td{padding:6px 4px}
+tbody tr:hover td{background:#00000006}
+.total{font-size:1.35rem;font-weight:700;color:var(--dark);background:var(--soft);border-radius:10px;padding:10px 14px;margin:12px 0 4px}
+#progbar{background:linear-gradient(90deg,var(--dark),var(--wood))}
+#prog{background:var(--soft)}
+.statusbar{color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;display:inline-block}
+.files li.cur{background:var(--soft)}
+dialog{border:0;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+dialog .tb{background:linear-gradient(135deg,var(--dark),var(--wood));color:#fff;border-bottom:0;padding:12px 16px}
+dialog .bd{padding:16px}
+dialog .ft{background:#fafafa}
+.swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.swatches button{display:flex;flex-direction:column;align-items:center;gap:6px;background:#fff;color:var(--ink);border:2px solid var(--line);padding:10px 6px;font-size:.85rem;box-shadow:none}
+.swatches button i{display:block;width:34px;height:34px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2)}
+.swatches button.sel{border-color:var(--wood);background:var(--soft)}
+.th2,.cft2{display:none}
+body.round .th2,body.round .cft2{display:table-cell}
+.seg{display:flex;gap:0;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:4px;margin:0 0 12px}
+.seg button{flex:1;background:transparent;color:var(--dark);box-shadow:none;border-radius:9px;padding:10px 6px;font-size:.92rem}
+.seg button[aria-pressed=true]{background:var(--wood);color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.seg button small{display:block;font-weight:500;opacity:.85;font-size:.72rem}
+.bar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bar button{width:100%;min-height:52px;padding:8px 6px;font-size:.92rem;line-height:1.2;white-space:normal}
+.menubar{gap:8px;align-items:center;padding:6px 12px}
+.menu{flex:1 1 0;max-width:none;min-width:0}
+.menu>button{width:100%;margin:0;padding:10px 8px;text-align:center}
+@media print{
+  @page{size:A4 portrait;margin:8mm}
+  html,body{width:194mm}
+  .sheet .page{width:194mm;height:262mm;overflow:hidden;box-sizing:border-box}
+  .sheet h2{font-size:18px;margin:0 0 3mm}
+  .sheet table{table-layout:fixed}
+  .sheet table th,.sheet table td{height:9.2mm;font-size:13px;padding:0 2mm;white-space:nowrap}
+  .sheet table th:nth-child(1),.sheet table td:nth-child(1){width:9mm;text-align:center;padding:0}
+  .sheet table th:nth-child(3),.sheet table td:nth-child(3){width:13mm}
+  .sheet .tot{font-size:14px;padding:2mm}
+  .sheet .grand{font-size:16px;margin-top:3mm}
+  body>*:not(#sheet){display:none!important}
+  #sheet{display:block!important}
+  body{background:#fff;padding:0;max-width:none}
+}
+</style>
+</head>
+<body>
+<nav class="menubar" aria-label="Main menu">
+  <div class="menu">
+    <button type="button" id="m-file" aria-haspopup="true" aria-expanded="false">File</button>
+    <div class="dd" id="dd-file" role="menu">
+      <button type="button" role="menuitem" id="mi-new">New</button>
+      <button type="button" role="menuitem" id="mi-open">Open... <span class="sc">Ctrl+O</span></button>
+      <button type="button" role="menuitem" id="mi-save">Save <span class="sc">Ctrl+S</span></button>
+      <button type="button" role="menuitem" id="mi-saveas">Save As...</button>
+      <hr>
+      <button type="button" role="menuitem" id="mi-delete">Delete...</button>
+    </div>
+  </div>
+  <div class="menu">
+    <button type="button" id="m-set" aria-haspopup="true" aria-expanded="false">Settings</button>
+    <div class="dd" id="dd-set" role="menu">
+      <button type="button" role="menuitem" id="mi-about">App info...</button>
+      <hr>
+      <button type="button" role="menuitem" id="mi-theme">Theme colour...</button>
+      <button type="button" role="menuitem" id="mi-api">API key...</button>
+      <button type="button" role="menuitem" id="mi-fb">Sync Setting...</button>
+      <button type="button" role="menuitem" id="mi-act">Activation key...</button>
+    </div>
+  </div>
+</nav>
+
+<h1>Log CFT Calculator</h1>
+<p class="sub" id="subtxt">Upload a photo of the measurement sheet. Sizes are read automatically and the CFT is calculated.</p>
+<div class="seg" role="group" aria-label="Sheet type"><button type="button" id="mode-sawn" aria-pressed="true">Sawn timber<small>Size &rarr; CFT</small></button><button type="button" id="mode-round" aria-pressed="false">Round log<small>Length &times; Girth &rarr; CBM</small></button></div>
+<div class="statusbar">File: <strong id="curname"></strong> &nbsp;|&nbsp; <span id="fmsg" role="status"></span> &nbsp;|&nbsp; <span id="actbadge"></span></div>
+
+<dialog id="dlg-about">
+  <div class="tb">Settings: App info</div>
+  <div class="bd">
+    <p style="margin:0 0 6px;font-size:1.1rem"><strong>Log CFT Calculator</strong></p>
+    <p style="margin:0 0 6px"><strong>Developed by:</strong> GreenCheck inc.</p>
+    <p style="margin:0 0 10px"><strong>About:</strong> Reads wood log sizes from a measurement sheet photo, calculates CFT (sawn timber) or CBM (round logs), groups the sizes and prints a sorted A4 sheet.</p>
+    <p style="margin:0"><strong>Email:</strong> <a href="mailto:greencheckinc@gmail.com">greencheckinc@gmail.com</a></p>
+    <p style="margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted)">&copy; 2026 GreenCheck inc. All rights reserved.</p>
+  </div>
+  <div class="ft"><button type="button" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-act">
+  <div class="tb">Activation key</div>
+  <div class="bd">
+    <p id="act-state" style="margin:0 0 8px"></p>
+    <label for="actkey">Enter activation key</label>
+    <input id="actkey" type="password" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
+    <div id="act-msg" role="status" style="margin-top:8px;min-height:1.2em"></div>
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button><button type="button" id="act-go">Activate</button></div>
+</dialog>
+
+<dialog id="dlg-fb">
+  <div class="tb">Sync Setting (multi-device)</div>
+  <div class="bd">
+    <p style="margin:0 0 8px;font-size:.85rem">Saved files sync between all devices that use the same Database URL and Sync ID.</p>
+    <label for="fb-url">Database URL</label>
+    <input id="fb-url" type="text" autocomplete="off" placeholder="https://..." style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
+    <label for="fb-id" style="margin-top:8px">Sync ID (same on every device; keep it private)</label>
+    <input id="fb-id" type="text" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
+    <label for="fb-auth" style="margin-top:8px">Auth token (optional)</label>
+    <input id="fb-auth" type="password" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
+    <label style="margin-top:8px"><input type="checkbox" id="fb-on"> Turn sync on</label>
+    <div id="fb-msg" role="status" style="margin-top:8px;min-height:1.2em;font-size:.9rem"></div>
+  </div>
+  <div class="ft"><button type="button" class="alt" id="fb-gen">New Sync ID</button><button type="button" class="alt" data-close>Close</button><button type="button" id="fb-go">Save &amp; sync</button></div>
+</dialog>
+
+<dialog id="dlg-theme">
+  <div class="tb">Theme colour</div>
+  <div class="bd"><div class="swatches" id="swatches"></div></div>
+  <div class="ft"><button type="button" data-close>Done</button></div>
+</dialog>
+
+<dialog id="dlg-confirm">
+  <div class="tb" id="cf-title">Please confirm</div>
+  <div class="bd" id="cf-msg"></div>
+  <div class="ft"><button type="button" class="alt" id="cf-no">Cancel</button><button type="button" id="cf-yes">OK</button></div>
+</dialog>
+
+<dialog id="dlg-list">
+  <div class="tb" id="dlg-list-title">Open</div>
+  <div class="bd"><ul id="flist" class="files"></ul></div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button></div>
+</dialog>
+
+<dialog id="dlg-save">
+  <div class="tb">Save As</div>
+  <div class="bd">
+    <label for="fname">File name</label>
+    <input id="fname" type="text" autocomplete="off">
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Cancel</button><button type="button" id="fsave">Save</button></div>
+</dialog>
+
+<dialog id="dlg-api">
+  <div class="tb">Settings: API key</div>
+  <div class="bd">
+    <label for="prov">AI provider (sheet photo vachva mate)</label>
+    <select id="prov" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit">
+      <option value="anthropic">Anthropic (Claude)</option>
+      <option value="openai">OpenAI (GPT)</option>
+    </select>
+    <div id="box-anthropic" style="margin-top:8px">
+      <label for="key">Anthropic API key (used only in your browser)</label>
+      <input id="key" type="password" autocomplete="off" placeholder="sk-ant-...">
+    </div>
+    <div id="box-openai" style="margin-top:8px" hidden>
+      <label for="okey">OpenAI API key (used only in your browser)</label>
+      <input id="okey" type="password" autocomplete="off" placeholder="sk-...">
+      <label for="omodel" style="margin-top:8px">OpenAI model (image vachi shake tevu)</label>
+      <input id="omodel" type="text" autocomplete="off" value="gpt-4o" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+    </div>
+    <label style="margin-top:8px"><input type="checkbox" id="remember"> Remember key on this device</label>
+  </div>
+  <div class="ft"><button type="button" data-close>Done</button></div>
+</dialog>
+
+<div class="box">
+  <label for="file">Sheet photo</label>
+  <input id="file" type="file" accept="image/*">
+  <img id="prev" alt="" hidden>
+  <p><button id="go">Read sizes</button></p>
+  <div id="status" role="status"></div>
+  <div id="prog" hidden><div id="progbar"></div></div>
+</div>
+
+<div class="box">
+  <table>
+    <thead><tr><th>#</th><th id="th-size">Size (7776, 7 7 76 or 7x7-76)</th><th id="th-val">CFT</th><th class="th2">CFT</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="bar">
+    <button id="sort" type="button" class="alt">Sort by first number</button>
+    <button id="print" type="button">Print sheet</button>
+    <button id="clear" type="button" class="alt">Clear all</button>
+  </div>
+  <div id="chk" hidden style="margin:8px 0;padding:8px;border:2px solid var(--bad);border-radius:6px;background:#fde8e6">
+    <span id="chk-n" style="color:var(--bad);font-weight:600"></span>
+    <button type="button" id="chk-go" style="margin-left:8px;padding:6px 12px">Go to next</button>
+  </div>
+  <div id="saved" class="sub" style="font-size:.8rem;margin:0" role="status"></div>
+  <div class="total"><span id="tot-label">Total CFT</span>: <span id="sum">0.00</span> &nbsp;(<span id="cnt">0</span> logs)<span id="tot2" style="display:block;font-size:.85rem;font-weight:600;color:var(--muted)"></span></div>
+</div>
+
+<div class="box">
+  <strong id="grp-title">By first number</strong>
+  <table><thead><tr><th id="grp-h1">Size</th><th>Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
+</div>
+<div id="sheet" class="sheet"></div>
+
+<script>
+// Last two digits: tens = feet, units = inches (0,3,6,9) -> 0, .25, .5, .75
+const MODEKEY='logcft_mode_v1';
+let MODE='sawn'; try{ if(localStorage.getItem(MODEKEY)==='round') MODE='round'; }catch(e){}
+// Round log: CFT = Girth(cm) x Girth(cm) x Length(m) x 2.2072 / 10000 ; CBM = CFT / 35.3147
+// Length code: 2 digits = decimetres (25 = 2.5 m), 3 digits = centimetres (205 = 2.05 m)
+const CFT_FACTOR=2.2072, CFT_PER_CBM=35.3147;
+function lengthM(raw){
+  const t=String(raw);
+  if(t.indexOf('.')>-1) return parseFloat(t);
+  const n=parseInt(t,10); if(isNaN(n)) return null;
+  return n>=100? n/100 : n/10;
+}
+function parseRound(size){
+  const t=String(size).trim().match(/\d+(?:\.\d+)?/g); if(!t) return null;
+  let L,G;
+  if(t.length===1 && /^\d{4}$/.test(t[0])){L=t[0].slice(0,2);G=t[0].slice(2)}
+  else if(t.length===1 && /^\d{5}$/.test(t[0])){L=t[0].slice(0,3);G=t[0].slice(3)}
+  else if(t.length===2){L=t[0];G=t[1]}
+  else return null;
+  const m=lengthM(L), g=parseFloat(G);
+  if(m===null||isNaN(g)||m<0.3||m>15||g<10||g>500) return null;
+  return {L:L,G:G,m:m,g:g};
+}
+function roundVol(size){
+  const p=parseRound(size); if(!p) return null;
+  const cft=p.g*p.g*p.m*CFT_FACTOR/10000;
+  return {cft:cft,cbm:cft/CFT_PER_CBM,m:p.m,g:p.g};
+}
+function fmtVal(c,mode){return (mode||MODE)==='round'?c.toFixed(3):c.toFixed(2)}
+function lengthFt(code){
+  const n = parseInt(code,10);
+  if (isNaN(n)) return null;
+  const feet = Math.floor(n/10), inch = n%10;
+  return feet + inch/12;
+}
+// Accepts: 7x7-76, 7 7 76, 7776, 7-7-76, 7*7*76, 77 76, 7.5x6-76
+function parseSize(size){
+  const s = String(size).trim().toLowerCase();
+  if(!s) return null;
+  let t = s.match(/\d+(?:\.\d+)?/g);
+  if(!t) return null;
+  let a,b,code;
+  if(t.length===1 && /^\d{4}$/.test(t[0])){          // 7776
+    a=t[0][0]; b=t[0][1]; code=t[0].slice(2);
+  } else if(t.length===1 && /^\d{6}$/.test(t[0])){    // 101076
+    a=t[0].slice(0,2); b=t[0].slice(2,4); code=t[0].slice(4);
+  } else if(t.length===2 && /^\d{2}$/.test(t[0]) && /^\d{2}$/.test(t[1])){ // 77 76
+    a=t[0][0]; b=t[0][1]; code=t[1];
+  } else if(t.length===2 && /^\d{3}$/.test(t[1])){    // 7 776
+    a=t[0]; b=t[1][0]; code=t[1].slice(1);
+  } else if(t.length===3){                            // 7 7 76 / 7x7-76
+    [a,b,code]=t;
+  } else return null;
+  if(!/^\d{2}$/.test(code)) return null;
+  return {a:parseFloat(a),b:parseFloat(b),code};
+}
+function normalize(size){
+  if(MODE==='round'){const r=parseRound(size);return r? r.L+'x'+r.G : size}
+  const p=parseSize(size);
+  return p ? p.a+'x'+p.b+'-'+p.code : size;
+}
+function calcM(size,mode){
+  if(mode==='round'){const r=roundVol(size);return r?r.cbm:null}
+  const p = parseSize(size);
+  if(!p) return null;
+  return (p.a*p.b*lengthFt(p.code))/144; // real CFT; sheet shows x100
+}
+function calc(size){return calcM(size,MODE)}
+const rows = document.getElementById('rows');
+function addRow(size='',after=null){
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td class="idx"></td><td><input value="'+size+'" inputmode="text" aria-label="Size"></td><td class="num cft">-</td><td class="num cft2"></td><td class="act"><button class="ghost plus" type="button" aria-label="Add row below">+</button><button class="ghost del" type="button" aria-label="Remove row">x</button></td>';
+  const inp=tr.querySelector('input');
+  inp.addEventListener('input',update);
+  inp.addEventListener('blur',()=>{inp.value=normalize(inp.value);update()});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.value=normalize(inp.value);update();
+    let n=tr.nextElementSibling; if(!n){addRow();update();n=tr.nextElementSibling} n.querySelector('input').focus();}});
+  tr.querySelector('.del').addEventListener('click',()=>{tr.remove();update()});
+  tr.querySelector('.plus').addEventListener('click',()=>{const n=addRow('',tr);update();n.querySelector('input').focus()});
+  if(after) after.after(tr); else rows.appendChild(tr);
+  return tr;
+}
+const STORE='logcft_rows_v1', KEYSTORE='logcft_key_v1';
+function save(){
+  try{
+    const vals=[...rows.querySelectorAll('input')].map(i=>i.value);
+    localStorage.setItem(STORE,JSON.stringify(vals));
+    const el=document.getElementById('saved'); if(el) el.textContent='Saved on this device';
+  }catch(e){}
+}
+function load(){
+  try{
+    const v=JSON.parse(localStorage.getItem(STORE)||'[]');
+    v.forEach(x=>addRow(String(x)));
+  }catch(e){}
+}
+function update(){
+  let sum=0,sumCft=0,cnt=0,i=1;
+  rows.querySelectorAll('tr').forEach(tr=>{
+    tr.querySelector('.idx').textContent=i++;
+    const v=tr.querySelector('input').value.trim();
+    const c=calc(v);
+    const cell=tr.querySelector('.cft');
+    const c2=tr.querySelector('.cft2'); const rv=(MODE==='round'&&v)?roundVol(v):null; if(c2) c2.textContent=rv?rv.cft.toFixed(2):''; if(rv) sumCft+=rv.cft;
+    tr.classList.toggle('bad',c===null&&!!v);
+    if(c===null){cell.textContent=v?'?':'-';cell.className='num cft'+(v?' err':'');}
+    else{cell.textContent=fmtVal(c);cell.className='num cft';sum+=c;cnt++;}
+  });
+  const nb=rows.querySelectorAll('tr.bad').length, ck=document.getElementById('chk');
+  if(ck){ck.hidden=!nb;document.getElementById('chk-n').textContent=nb+(nb===1?' size needs':' sizes need')+' checking';}
+  const g={};
+  getList().forEach(v=>{
+    const c=calc(v); if(c===null) return;
+    const key=MODE==='round'? roundVol(v).m.toFixed(2) : parseSize(v).a;
+    (g[key]=g[key]||{n:0,c:0}).n++; g[key].c+=c;
+  });
+  document.getElementById('grp').innerHTML=Object.keys(g).sort((x,y)=>x-y).map(k=>'<tr><td>'+(MODE==='round'?parseFloat(k)+' m':k+' x')+'</td><td>'+g[k].n+'</td><td>'+fmtVal(g[k].c)+'</td></tr>').join('')||'<tr><td colspan="3">-</td></tr>';
+  document.getElementById('sum').textContent=fmtVal(sum);
+  document.getElementById('tot2').textContent=MODE==='round'?'Total CFT: '+sumCft.toFixed(2):'';
+  save();
+  document.getElementById('cnt').textContent=cnt;
+}
+function getList(){
+  return [...rows.querySelectorAll('input')].map(i=>i.value.trim()).filter(v=>v);
+}
+function sortKey(v){
+  if(MODE==='round'){const r=parseRound(v);return r?[r.m,r.g,0]:[1e9,0,0]}
+  const p=parseSize(v); if(!p) return [1e9,0,0];
+  return [p.a,p.b,lengthFt(p.code)];
+}
+function sortRows(){
+  const l=getList().map(normalize);
+  l.sort((x,y)=>sortKey(x)[0]-sortKey(y)[0]); // first number only, rest keeps original order
+  rows.innerHTML=''; l.forEach(v=>addRow(v)); update();
+}
+document.getElementById('sort').onclick=sortRows;
+let badPos=-1;
+document.getElementById('chk-go').onclick=()=>{
+  const bad=[...rows.querySelectorAll('tr.bad')]; if(!bad.length) return;
+  badPos=(badPos+1)%bad.length;
+  const inp=bad[badPos].querySelector('input');
+  inp.scrollIntoView({block:'center',behavior:'smooth'}); inp.focus(); inp.select();
+};
+document.getElementById('clear').onclick=async()=>{
+  if(!currentRows().length || await askConfirm('Delete all entered sizes? This cannot be undone.','Delete all')){rows.innerHTML='';addRow();update();}
+};
+
+function buildSheet(){
+  const l=getList().map(normalize);
+  const per=25, colsN=4, pages=Math.max(1,Math.ceil(l.length/(per*colsN)));
+  let html='', grand=0;
+  for(let pg=0;pg<pages;pg++){
+    html+='<div class="page" style="page-break-after:'+(pg<pages-1?'always':'auto')+'"><h2>'+(MODE==='round'?'ROUND LOG MEASUREMENT SHEET':'MEASUREMENT SHEET')+'</h2><div class="cols">';
+    for(let c=0;c<colsN;c++){
+      const start=pg*per*colsN+c*per; let tot=0;
+      html+='<div class="col"><table style="width:100%;border-collapse:collapse"><thead><tr><th>SR.</th><th>'+(MODE==='round'?'LENGTH x GIRTH':'SIZE')+'</th><th>'+(MODE==='round'?'CBM':'C.F.T.')+'</th></tr></thead><tbody>';
+      for(let i=0;i<per;i++){
+        const idx=start+i, v=l[idx];
+        if(v===undefined){html+='<tr><td>'+String(idx+1).padStart(2,'0')+'</td><td>&nbsp;</td><td></td></tr>';continue}
+        const cft=calc(v);
+        if(cft!==null) tot+=cft;
+        html+='<tr><td>'+String(idx+1).padStart(2,'0')+'</td><td>'+(MODE==='round'?v.replace('x',' x '):v)+'</td><td style="text-align:right">'+(cft===null?'?':(MODE==='round'?cft.toFixed(3):Math.round(cft*100)))+'</td></tr>';
+      }
+      grand+=tot;
+      html+='</tbody></table><div class="tot">TOTAL: '+fmtVal(tot)+'</div></div>';
+    }
+    html+='</div></div>';
+  }
+  html+='<div class="grand">Total '+(MODE==='round'?'CBM':'CFT')+': '+fmtVal(grand)+' &nbsp; ('+l.length+' logs)'+(MODE==='round'?' &nbsp; CFT: '+(grand*CFT_PER_CBM).toFixed(2):'')+'</div>';
+  document.getElementById('sheet').innerHTML=html;
+}
+document.getElementById('print').onclick=()=>{
+  if(!getList().length){return}
+  if(!requireActive()) return;
+  sortRows(); buildSheet(); window.print();
+};
+
+
+const file=document.getElementById('file'), prev=document.getElementById('prev'), st=document.getElementById('status');
+let cachedB64=null, cachedMime='image/jpeg';
+file.onchange=()=>{
+  const f=file.files[0]; if(!f) return;
+  prev.src=URL.createObjectURL(f); prev.hidden=false;
+  cachedB64=null;
+  // read the photo into memory right away (Android can revoke access to the picked file later)
+  cachedMime='image/jpeg';
+  shrinkToB64(f,2200).then(d=>{cachedB64=d;cachedMime='image/jpeg'})
+    .catch(()=>toBase64(f).then(d=>{cachedB64=d;cachedMime=f.type||'image/jpeg'}).catch(()=>{}));
+};
+// Shrink big phone photos (max 2200 px, JPEG) so the upload is small and reliable
+function shrinkToB64(f,maxSide){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(f), img=new Image();
+    img.onload=()=>{
+      try{
+        let w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,maxSide/Math.max(w,h));
+        w=Math.round(w*s); h=Math.round(h*s);
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        const d=c.toDataURL('image/jpeg',0.88).split(',')[1];
+        URL.revokeObjectURL(url); res(d);
+      }catch(e){URL.revokeObjectURL(url);rej(e)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('The photo could not be read. Tap "Choose file" and select the photo again.'))};
+    img.src=url;
+  });
+}
+
+function toBase64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('The photo could not be read. Tap "Choose file" and select the photo again.'));r.readAsDataURL(f)})}
+
+function setP(p){
+  p=Math.round(p);
+  document.getElementById('prog').hidden=false;
+  document.getElementById('progbar').style.width=p+'%';
+  st.innerHTML='Reading sizes... <strong>'+p+'%</strong>';
+}
+document.getElementById('go').onclick=async()=>{
+  if(!requireActive()) return;
+  const f=file.files[0], oa=(PROVIDER==='openai');
+  const key=oa?document.getElementById('okey').value.trim():document.getElementById('key').value.trim();
+  if(!key){st.innerHTML='<span class="err">Please enter your '+(oa?'OpenAI':'Anthropic')+' API key in Settings > API key.</span>';return}
+  if(!f){st.innerHTML='<span class="err">Please choose a photo first.</span>';return}
+  document.getElementById('prog').hidden=true;
+  st.textContent='Reading sizes...';
+  try{
+    setP(2);
+    let data=cachedB64, mime0=cachedMime;
+    if(!data){
+      try{data=await shrinkToB64(f,2200);mime0='image/jpeg'}
+      catch(x){data=await toBase64(f);mime0=f.type||'image/jpeg'}
+    }
+    setP(6);
+    const mime=mime0;
+    const r=oa
+      ? await fetch('https://api.openai.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+          body:JSON.stringify({
+            model:(document.getElementById('omodel').value.trim()||'gpt-4o'),max_completion_tokens:4000,stream:true,
+            messages:[{role:'user',content:[
+              {type:'text',text:aiPrompt()},
+              {type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}
+            ]}]
+          })
+        })
+      : await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body:JSON.stringify({
+            model:'claude-sonnet-5-5',max_tokens:4000,stream:true,
+            messages:[{role:'user',content:[
+              {type:'image',source:{type:'base64',media_type:mime,data}},
+              {type:'text',text:aiPrompt()}
+            ]}]
+          })
+        });
+    if(!r.ok){let j={};try{j=await r.json()}catch(x){} throw new Error((j.error&&j.error.message)||r.status)}
+    setP(10);
+    let txt='', buf='';
+    const rd=r.body.getReader(), dec=new TextDecoder();
+    for(;;){
+      const {done,value}=await rd.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n'); buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith('data:')) continue;
+        if(oa){
+          const p=ln.slice(5).trim(); if(!p||p==='[DONE]') continue;
+          let ev; try{ev=JSON.parse(p)}catch(x){continue}
+          if(ev.error) throw new Error(ev.error.message||'stream error');
+          const dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta; if(dl&&dl.content) txt+=dl.content;
+          continue;
+        }
+        try{ const ev=JSON.parse(ln.slice(5)); if(ev.type==='content_block_delta'&&ev.delta&&ev.delta.text) txt+=ev.delta.text; else if(ev.type==='error') throw new Error(ev.error&&ev.error.message||'stream error') }catch(x){ if(x.message&&x.message!==undefined&&ln.indexOf('"error"')>-1) throw x }
+      }
+      const n=(txt.match(/"sr"/g)||[]).length;
+      setP(10+Math.min(88,n*0.88));
+    }
+    setP(100);
+    txt=txt.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(txt);
+    let arr=[], missing=[];
+    if(parsed.length&&typeof parsed[0]==='object'){
+      const m={}; parsed.forEach(x=>{const n=parseInt(x.sr,10); if(n>0&&m[n]===undefined) m[n]=String(x.size)});
+      const last=Math.max(...Object.keys(m).map(Number));
+      for(let i=1;i<=last;i++){ if(m[i]===undefined){arr.push('?');missing.push(i)} else arr.push(m[i]); }
+    } else arr=parsed.map(String);
+    rows.innerHTML='';
+    arr.forEach(s=>addRow(String(s)));
+    update();
+    let msg=arr.length+' sizes found (last serial no. '+arr.length+').';
+    if(missing.length) msg+=' <span class=\"err\">Serial no. '+missing.join(', ')+' could not be read - marked \"?\", please type them from the sheet.</span>';
+    else msg+=' All serial numbers are present.';
+    if(arr.length<100) msg+=' <span class=\"err\">Sheet normally has 100 - check that the photo shows every row.</span>';
+    msg+=' Please correct any marked \"?\" or that look wrong.';
+    st.innerHTML=msg;
+    setTimeout(()=>{document.getElementById('prog').hidden=true},800);
+  }catch(e){document.getElementById('prog').hidden=true;const em=(e&&e.message)||''; const net=/failed to fetch|networkerror|load failed/i.test(em);
+  st.innerHTML='<span class="err">Error: '+(net?'Could not reach '+(PROVIDER==='openai'?'api.openai.com':'api.anthropic.com')+'. Check internet, and open this app from your own website/app (GitHub Pages / Median), not from the Claude preview.':esc(em?em:(e&&e.type?'could not read the photo - choose it again':String(e))))+'</span>'}
+};
+
+
+// In-app confirm box (browser confirm() is blocked in some sandboxes)
+function askConfirm(msg,okLabel){
+  return new Promise(res=>{
+    const d=document.getElementById('dlg-confirm');
+    document.getElementById('cf-msg').textContent=msg;
+    document.getElementById('cf-yes').textContent=okLabel||'OK';
+    const done=v=>{d.removeEventListener('close',onClose);d.close();res(v)};
+    const onClose=()=>res(false);
+    document.getElementById('cf-yes').onclick=()=>done(true);
+    document.getElementById('cf-no').onclick=()=>done(false);
+    d.addEventListener('close',onClose,{once:true});
+    d.showModal();
+  });
+}
+function isDirty(){
+  const cur=getCurrent(), now=currentRows().map(normalize);
+  if(!now.length) return false;
+  if(!cur) return true;
+  const f=readFiles(); if(!f[cur]) return true;
+  return JSON.stringify(f[cur].rows)!==JSON.stringify(now);
+}
+
+// ---------- Saved files ----------
+const FILES='logcft_files_v1', CUR='logcft_current_v1';
+const fname=document.getElementById('fname'), fmsg=document.getElementById('fmsg');
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function readFiles(){try{return JSON.parse(localStorage.getItem(FILES)||'{}')}catch(e){return {}}}
+function writeFiles(f){try{localStorage.setItem(FILES,JSON.stringify(f));return true}catch(e){fmsg.textContent='Could not save: browser storage is unavailable or full.';return false}}
+function currentRows(){return [...rows.querySelectorAll('input')].map(i=>i.value.trim()).filter(v=>v)}
+function totalOf(list,mode){let t=0;list.forEach(v=>{const c=calcM(v,mode||'sawn');if(c!==null)t+=c});return t}
+function setCurrent(n){try{localStorage.setItem(CUR,n||'')}catch(e){}}
+function getCurrent(){try{return localStorage.getItem(CUR)||''}catch(e){return ''}}
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+let listMode='open';
+function renderFiles(){
+  const cn=document.getElementById('curname'); if(cn) cn.textContent=getCurrent()||(today()+' (not saved yet)');
+  const f=readFiles(), cur=getCurrent(), ul=document.getElementById('flist');
+  const names=Object.keys(f).sort((a,b)=>(f[b].updated||0)-(f[a].updated||0));
+  ul.innerHTML=names.length?'':'<li>No saved files yet.</li>';
+  names.forEach(n=>{
+    const li=document.createElement('li'); if(n===cur) li.className='cur';
+    const list=f[n].rows||[];
+    li.innerHTML='<div class="nm"><strong>'+esc(n)+'</strong><div class="meta">'+list.length+' logs, '+fmtVal(totalOf(list,f[n].mode),f[n].mode||'sawn')+(f[n].mode==='round'?' CBM':' CFT')+'</div></div>'
+      +(listMode==='open'
+        ?'<button type="button" class="alt" data-a="open">Open</button>'
+        :'<button type="button" class="alt" data-a="del" style="color:var(--bad);border-color:var(--bad)">Delete</button>');
+    const ob=li.querySelector('[data-a=open]'), db=li.querySelector('[data-a=del]');
+    if(ob) ob.onclick=()=>{document.getElementById('dlg-list').close();openFile(n)};
+    if(db) db.onclick=()=>delFile(n);
+    ul.appendChild(li);
+  });
+}
+async function saveFile(){
+  if(!requireActive()) return;
+  const n=fname.value.trim()||today();
+  fname.value=n;
+  const f=readFiles();
+  if(f[n] && n!==getCurrent() && !(await askConfirm('A file named "'+n+'" already exists. Replace it?','Replace'))) return;
+  f[n]={rows:currentRows().map(normalize),updated:Date.now(),mode:MODE};
+  if(writeFiles(f)){setCurrent(n);fmsg.textContent='Saved "'+n+'".';renderFiles();document.getElementById('dlg-save').close();fbSync();}
+}
+async function openFile(n){
+  const f=readFiles(); if(!f[n]) return;
+  if(getCurrent()!==n && isDirty() && !(await askConfirm('Open "'+n+'"? Unsaved changes in the current sheet will be replaced.','Open anyway'))) return;
+  setMode(f[n].mode||'sawn');
+  rows.innerHTML=''; f[n].rows.forEach(v=>addRow(v)); if(!rows.children.length) addRow();
+  fname.value=n; setCurrent(n); update(); fmsg.textContent='Opened "'+n+'".'; renderFiles();
+}
+async function delFile(n){
+  if(!(await askConfirm('Delete file "'+n+'"? This cannot be undone.','Delete'))) return;
+  const f=readFiles(); delete f[n]; writeFiles(f); addTomb(n);
+  if(getCurrent()===n) setCurrent('');
+  fmsg.textContent='Deleted "'+n+'".'; renderFiles(); fbSync();
+}
+async function newFile(){
+  if(isDirty() && !(await askConfirm('Start a new sheet? Unsaved changes will be lost (saved files are not affected).','Start new'))) return;
+  rows.innerHTML=''; addRow(); setCurrent(''); fname.value=today(); update(); fmsg.textContent='New sheet started.'; renderFiles();
+}
+document.getElementById('fsave').onclick=saveFile;
+fname.addEventListener('keydown',e=>{if(e.key==='Enter')saveFile()});
+
+// ---------- Menu bar ----------
+const menus=[['m-file','dd-file'],['m-set','dd-set']];
+function closeMenus(){menus.forEach(([b,d])=>{document.getElementById(d).classList.remove('open');document.getElementById(b).setAttribute('aria-expanded','false')})}
+menus.forEach(([b,d])=>{
+  const btn=document.getElementById(b), dd=document.getElementById(d);
+  btn.addEventListener('click',e=>{e.stopPropagation();const was=dd.classList.contains('open');closeMenus();if(!was){dd.classList.add('open');btn.setAttribute('aria-expanded','true')}});
+});
+document.addEventListener('click',closeMenus);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus()});
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
+function showList(mode){
+  listMode=mode;
+  document.getElementById('dlg-list-title').textContent=mode==='open'?'Open file':'Delete file';
+  renderFiles(); document.getElementById('dlg-list').showModal();
+}
+function showSaveAs(){fname.value=getCurrent()||today();document.getElementById('dlg-save').showModal();fname.select()}
+function doSave(){ if(getCurrent()){fname.value=getCurrent();saveFile()} else showSaveAs() }
+document.getElementById('mi-new').onclick=()=>{closeMenus();newFile()};
+document.getElementById('mi-open').onclick=()=>{closeMenus();showList('open')};
+document.getElementById('mi-save').onclick=()=>{closeMenus();doSave()};
+document.getElementById('mi-saveas').onclick=()=>{closeMenus();showSaveAs()};
+document.getElementById('mi-delete').onclick=()=>{closeMenus();showList('delete')};
+document.getElementById('mi-api').onclick=()=>{closeMenus();document.getElementById('dlg-api').showModal()};
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey){
+    const k=e.key.toLowerCase();
+    if(k==='s'){e.preventDefault();doSave()}
+    else if(k==='o'){e.preventDefault();showList('open')}
+  }
+});
+
+
+
+// ---------- Theme colour ----------
+function renderSwatches(){
+  let cur='green'; try{cur=localStorage.getItem(THEMEKEY)||'green'}catch(e){}
+  const box=document.getElementById('swatches'); box.innerHTML='';
+  Object.keys(THEMES).forEach(k=>{
+    const b=document.createElement('button'); b.type='button'; if(k===cur) b.className='sel';
+    b.innerHTML='<i style="background:'+THEMES[k].c+'"></i>'+THEMES[k].n;
+    b.onclick=()=>{applyTheme(k);try{localStorage.setItem(THEMEKEY,k)}catch(e){}renderSwatches()};
+    box.appendChild(b);
+  });
+}
+document.getElementById('mi-theme').onclick=()=>{closeMenus();renderSwatches();document.getElementById('dlg-theme').showModal()};
+
+
+// ---------- Sheet type (sawn timber / round log) ----------
+const SAWN_PROMPT='This is a wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Read the SR. NO. and the SIZE for every row, for example 7x7-76 or 6x5-73. Ignore the C.F.T. column. Do not skip any serial number: include every row up to the last one that has a size. Return only a JSON array like [{"sr":1,"size":"7x7-76"},{"sr":2,"size":"7x5-76"}] and nothing else. If a size cannot be read, use "?" as the size.';
+const ROUND_PROMPT='This is a round wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Each row has a Length and a Girth. Read the SR. NO., the Length and the Girth of every row and write the size as Length x Girth, for example 25x45 or 205x41 (copy the digits exactly as written, do not add decimals). Ignore the CFT/CBM column. Do not skip any serial number: include every row up to the last one that has values. Return only a JSON array like [{"sr":1,"size":"25x45"},{"sr":2,"size":"25x38"}] and nothing else. If a value cannot be read, use "?" as the size.';
+function aiPrompt(){return MODE==='round'?ROUND_PROMPT:SAWN_PROMPT}
+function applyMode(){
+  const r=MODE==='round';
+  document.body.classList.toggle('round',r);
+  document.getElementById('mode-sawn').setAttribute('aria-pressed',String(!r));
+  document.getElementById('mode-round').setAttribute('aria-pressed',String(r));
+  document.getElementById('subtxt').textContent=r?'Upload a photo of the round log sheet. Length and girth are read automatically and the CBM is calculated.':'Upload a photo of the measurement sheet. Sizes are read automatically and the CFT is calculated.';
+  document.getElementById('th-size').textContent=r?'Length x Girth (25 45 or 25x45)':'Size (7776, 7 7 76 or 7x7-76)';
+  document.getElementById('th-val').textContent=r?'CBM':'CFT';
+  document.getElementById('tot-label').textContent=r?'Total CBM':'Total CFT';
+  document.getElementById('grp-title').textContent=r?'By length':'By first number';
+  document.getElementById('grp-h1').textContent=r?'Length':'Size';
+  document.getElementById('grp-h3').textContent=r?'CBM':'CFT';
+  document.getElementById('sort').textContent=r?'Sort by length':'Sort by first number';
+}
+function setMode(m){
+  MODE=(m==='round')?'round':'sawn';
+  try{localStorage.setItem(MODEKEY,MODE)}catch(e){}
+  applyMode(); update();
+}
+async function switchMode(m){
+  if(m===MODE) return;
+  if(isDirty() && !(await askConfirm('Switch to '+(m==='round'?'Round log (CBM)':'Sawn timber (CFT)')+'? The current sheet will be cleared (saved files are not affected).','Switch'))) return;
+  rows.innerHTML=''; setMode(m); addRow(); setCurrent(''); fname.value=today(); update();
+  fmsg.textContent='New '+(m==='round'?'round log':'sawn timber')+' sheet started.'; renderFiles();
+}
+document.getElementById('mode-sawn').onclick=()=>switchMode('sawn');
+document.getElementById('mode-round').onclick=()=>switchMode('round');
+
+// ---------- Firebase sync (Realtime Database REST, no SDK) ----------
+const FBSTORE='logcft_fb_v1', TOMB='logcft_tomb_v1';
+function getFb(){try{return JSON.parse(localStorage.getItem(FBSTORE)||'null')}catch(e){return null}}
+function readTomb(){try{return JSON.parse(localStorage.getItem(TOMB)||'{}')}catch(e){return {}}}
+function addTomb(n){const t=readTomb();t[n]=Date.now();try{localStorage.setItem(TOMB,JSON.stringify(t))}catch(e){}}
+function fbKey(n){return encodeURIComponent(n).replace(/\./g,'%2E')}
+function toArr(x){return Array.isArray(x)?x:(x&&typeof x==='object'?Object.values(x):[])}
+let fbBusy=false;
+async function fbSync(){
+  const c=getFb(); if(!c||!c.on||!c.url||!c.id||fbBusy) return {skipped:true};
+  fbBusy=true;
+  try{
+    const url=c.url.trim().replace(/\/+$/,'')+'/logcft/'+encodeURIComponent(c.id)+'.json'+(c.auth?'?auth='+encodeURIComponent(c.auth):'');
+    const r=await fetch(url); if(!r.ok) throw new Error('Server said '+r.status+(r.status===401||r.status===403?' (check database rules / token)':''));
+    const remote=(await r.json())||{};
+    const rmap={}, rt={};
+    Object.values(remote.files||{}).forEach(x=>{if(x&&x.name) rmap[x.name]={rows:toArr(x.rows),updated:x.updated||0,mode:x.mode||'sawn'}});
+    Object.values(remote.deleted||{}).forEach(x=>{if(x&&x.name) rt[x.name]=x.ts||0});
+    const lf=readFiles(), lt=readTomb(), tt={}, out={};
+    new Set([...Object.keys(lt),...Object.keys(rt)]).forEach(n=>tt[n]=Math.max(lt[n]||0,rt[n]||0));
+    new Set([...Object.keys(lf),...Object.keys(rmap)]).forEach(n=>{
+      const a=lf[n], b=rmap[n]; const best=(!b||(a&&a.updated>=b.updated))?a:b;
+      if((tt[n]||0)>=(best.updated||0)) return;
+      out[n]={rows:toArr(best.rows),updated:best.updated||0,mode:best.mode||'sawn'};
+    });
+    const changed=JSON.stringify(out)!==JSON.stringify(lf);
+    if(changed){ writeFiles(out); if(getCurrent()&&!out[getCurrent()]) setCurrent(''); }
+    try{localStorage.setItem(TOMB,JSON.stringify(tt))}catch(e){}
+    const body={files:{},deleted:{}};
+    Object.keys(out).forEach(n=>body.files[fbKey(n)]={name:n,rows:out[n].rows,updated:out[n].updated,mode:out[n].mode});
+    Object.keys(tt).forEach(n=>{if(!out[n]) body.deleted[fbKey(n)]={name:n,ts:tt[n]}});
+    const w=await fetch(url,{method:'PUT',body:JSON.stringify(body)}); if(!w.ok) throw new Error('Could not upload: '+w.status);
+    renderFiles();
+    return {ok:true,count:Object.keys(out).length};
+  }catch(e){ return {error:e.message||String(e)}; }
+  finally{ fbBusy=false; }
+}
+function fbStatus(res){
+  const m=document.getElementById('fb-msg'); if(!m) return;
+  if(res.ok) m.innerHTML='<span style="color:var(--ok)">Synced '+res.count+' file(s) at '+new Date().toLocaleTimeString()+'.</span>';
+  else if(res.error) m.innerHTML='<span class="err">Sync failed: '+esc(res.error)+'</span>';
+}
+function randId(){const a=new Uint8Array(12);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,'0')).join('')}
+document.getElementById('mi-fb').onclick=()=>{
+  closeMenus(); const c=getFb()||{};
+  document.getElementById('fb-url').value=c.url||''; document.getElementById('fb-id').value=c.id||'';
+  document.getElementById('fb-auth').value=c.auth||''; document.getElementById('fb-on').checked=!!c.on;
+  document.getElementById('fb-msg').textContent=''; document.getElementById('dlg-fb').showModal();
+};
+document.getElementById('fb-gen').onclick=()=>{document.getElementById('fb-id').value=randId()};
+document.getElementById('fb-go').onclick=async()=>{
+  const c={url:document.getElementById('fb-url').value.trim(),id:document.getElementById('fb-id').value.trim(),auth:document.getElementById('fb-auth').value.trim(),on:document.getElementById('fb-on').checked};
+  const m=document.getElementById('fb-msg');
+  if(c.on&&(!/^https:\/\/.+/.test(c.url)||!c.id)){m.innerHTML='<span class="err">Enter the https Database URL and a Sync ID.</span>';return}
+  try{localStorage.setItem(FBSTORE,JSON.stringify(c))}catch(e){}
+  if(!c.on){m.textContent='Sync is off.';return}
+  m.textContent='Syncing...'; fbStatus(await fbSync());
+};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden) fbSync()});
+setInterval(fbSync,60000);
+
+// ---------- Activation ----------
+// Only a salted PBKDF2 hash is stored here; the key itself is not in this file.
+const ACT_SALT="74fdda1040218ce32e53d68014c5fc41", ACT_HASH="00c4be6201526371acba2c9844623aa5fa071c19c2712441611a848b150a444a", ACT_ITER=200000, ACTSTORE='logcft_act_v1';
+let ACTIVE=false;
+// ---- 30-day trial (start date and last-seen time kept in two places; clock rollback = expired) ----
+const TRIAL_DAYS=30, T_START='logcft_t1', T_SEEN='logcft_t2', DAY=86400000;
+function rd(k){let a=null,b=null;try{a=parseInt(localStorage.getItem(k),10)}catch(e){}
+  try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=(\\d+)'));if(m)b=parseInt(m[1],10)}catch(e){}
+  return [a,b].filter(x=>Number.isFinite(x))}
+function wr(k,v){try{localStorage.setItem(k,String(v))}catch(e){}
+  try{document.cookie=k+'='+v+'; max-age=315360000; path=/; SameSite=Lax'}catch(e){}}
+function trialDaysLeft(){
+  const now=Date.now();
+  let st=rd(T_START), seen=rd(T_SEEN);
+  if(!st.length){wr(T_START,now);st=rd(T_START);if(!st.length) return 0}   // no storage at all = no trial
+  const start=Math.min(...st), lastSeen=seen.length?Math.max(...seen):0;
+  if(now<lastSeen-300000) return 0;            // clock turned back
+  wr(T_START,start); wr(T_SEEN,Math.max(now,lastSeen));
+  return Math.max(0,Math.ceil((start+TRIAL_DAYS*DAY-now)/DAY));
+}
+let TRIAL_LEFT=0;
+function hexToBytes(h){const a=new Uint8Array(h.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a}
+function bytesToHex(b){return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function deriveHex(k){
+  if(!(window.crypto&&crypto.subtle)) throw new Error('Secure browser context required');
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(k),'PBKDF2',false,['deriveBits']);
+  return bytesToHex(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:hexToBytes(ACT_SALT),iterations:ACT_ITER},km,256));
+}
+function refreshAct(){
+  TRIAL_LEFT=trialDaysLeft();
+  const t=ACTIVE?'Activated':(TRIAL_LEFT>0?'Trial: '+TRIAL_LEFT+' day'+(TRIAL_LEFT===1?'':'s')+' left':'Trial expired - activation required');
+  document.getElementById('actbadge').textContent=t;
+  document.getElementById('act-state').textContent=ACTIVE?'This copy is activated.':(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
+}
+function requireActive(){
+  refreshAct();
+  if(ACTIVE||TRIAL_LEFT>0) return true;
+  fmsg.textContent='Activation required. Open Settings > Activation key.';
+  document.getElementById('act-msg').textContent='';
+  document.getElementById('dlg-act').showModal();
+  return false;
+}
+try{ ACTIVE=(localStorage.getItem(ACTSTORE)===ACT_HASH); }catch(e){}
+document.getElementById('act-go').onclick=async()=>{
+  const m=document.getElementById('act-msg'), inp=document.getElementById('actkey');
+  const k=inp.value.trim(); if(!k){m.innerHTML='<span class="err">Enter the key.</span>';return}
+  m.textContent='Checking...';
+  try{
+    const h=await deriveHex(k);
+    let ok=h.length===ACT_HASH.length, d=0; for(let i=0;i<h.length&&i<ACT_HASH.length;i++) d|=h.charCodeAt(i)^ACT_HASH.charCodeAt(i);
+    if(ok&&d===0){
+      ACTIVE=true; try{localStorage.setItem(ACTSTORE,ACT_HASH)}catch(e){}
+      inp.value=''; m.innerHTML='<span style="color:var(--ok)">Activated successfully.</span>'; refreshAct();
+      setTimeout(()=>document.getElementById('dlg-act').close(),700);
+    } else { m.innerHTML='<span class="err">Invalid activation key.</span>'; }
+  }catch(e){ m.innerHTML='<span class="err">Could not check the key: '+e.message+'</span>'; }
+};
+document.getElementById('actkey').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('act-go').click()});
+document.getElementById('mi-act').onclick=()=>{closeMenus();document.getElementById('act-msg').textContent='';refreshAct();document.getElementById('dlg-act').showModal()};
+document.getElementById('mi-about').onclick=()=>{closeMenus();refreshAct();document.getElementById('dlg-about').showModal()};
+refreshAct();
+function lockIfExpired(){
+  if(ACTIVE) return; refreshAct(); if(TRIAL_LEFT>0) return;
+  const d=document.getElementById('dlg-act'); if(!d.open){document.getElementById('act-msg').textContent='';d.showModal()}
+}
+document.getElementById('dlg-act').addEventListener('cancel',e=>{if(!ACTIVE&&TRIAL_LEFT<=0)e.preventDefault()});
+document.getElementById('dlg-act').addEventListener('close',()=>setTimeout(lockIfExpired,0));
+lockIfExpired();
+fname.value=getCurrent()||today();
+renderFiles();
+load();
+if(!rows.children.length) addRow();
+try{
+  const k=localStorage.getItem(KEYSTORE);
+  if(k){document.getElementById('key').value=k;document.getElementById('remember').checked=true;}
+}catch(e){}
+// No built-in default key any more. Clear the old placeholder key if an earlier version saved it.
+if(document.getElementById('key').value==='sk-abcdef1234567890abcdef1234567890abcdef12'){
+  document.getElementById('key').value='';
+  try{localStorage.removeItem(KEYSTORE)}catch(e){}
+}
+document.getElementById('remember').checked=true; // keys are remembered on this device by default
+document.getElementById('remember').onchange=e=>{
+  try{ if(e.target.checked) localStorage.setItem(KEYSTORE,document.getElementById('key').value); else localStorage.removeItem(KEYSTORE);}catch(x){}
+};
+document.getElementById('key').addEventListener('input',()=>{
+  try{ if(document.getElementById('remember').checked) localStorage.setItem(KEYSTORE,document.getElementById('key').value);}catch(x){}
+});
+// ---------- AI provider (Anthropic / OpenAI) ----------
+const PROVKEY='logcft_provider_v1', OKEYSTORE='logcft_okey_v1', OMODELKEY='logcft_omodel_v1';
+let PROVIDER='openai'; try{ if(localStorage.getItem(PROVKEY)==='anthropic') PROVIDER='anthropic'; }catch(e){}
+function applyProvider(){
+  const o=PROVIDER==='openai';
+  document.getElementById('prov').value=PROVIDER;
+  document.getElementById('box-anthropic').hidden=o;
+  document.getElementById('box-openai').hidden=!o;
+}
+document.getElementById('prov').onchange=e=>{
+  PROVIDER=e.target.value==='openai'?'openai':'anthropic';
+  try{localStorage.setItem(PROVKEY,PROVIDER)}catch(x){}
+  applyProvider();
+};
+try{
+  const ok=localStorage.getItem(OKEYSTORE); if(ok){document.getElementById('okey').value=ok;document.getElementById('remember').checked=true;}
+  const om=localStorage.getItem(OMODELKEY); if(om) document.getElementById('omodel').value=om;
+}catch(e){}
+document.getElementById('remember').addEventListener('change',e=>{
+  try{ if(e.target.checked) localStorage.setItem(OKEYSTORE,document.getElementById('okey').value); else localStorage.removeItem(OKEYSTORE);}catch(x){}
+});
+document.getElementById('okey').addEventListener('input',()=>{
+  try{ if(document.getElementById('remember').checked) localStorage.setItem(OKEYSTORE,document.getElementById('okey').value);}catch(x){}
+});
+document.getElementById('omodel').addEventListener('input',()=>{
+  try{localStorage.setItem(OMODELKEY,document.getElementById('omodel').value)}catch(x){}
+});
+applyProvider();
+applyMode();
+update();
+fbSync();
+// ---------- PWA: offline support + installable ----------
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
+}
+</script>
+</body>
+</html>
