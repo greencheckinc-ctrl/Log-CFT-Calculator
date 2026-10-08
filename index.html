@@ -323,6 +323,7 @@ body.round .th2,body.round .cft2{display:table-cell}
     <select id="prov" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit">
       <option value="anthropic">Anthropic (Claude)</option>
       <option value="openai">OpenAI (GPT)</option>
+      <option value="gemini">Google (Gemini - free key)</option>
     </select>
     <div id="box-anthropic" style="margin-top:8px">
       <label for="key">Anthropic API key (used only in your browser)</label>
@@ -333,6 +334,12 @@ body.round .th2,body.round .cft2{display:table-cell}
       <input id="okey" type="password" autocomplete="off" placeholder="sk-...">
       <label for="omodel" style="margin-top:8px">OpenAI model (image vachi shake tevu)</label>
       <input id="omodel" type="text" autocomplete="off" value="gpt-4o" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+    </div>
+    <div id="box-gemini" style="margin-top:8px" hidden>
+      <label for="gkey">Google Gemini API key (free: aistudio.google.com/app/apikey)</label>
+      <input id="gkey" type="password" autocomplete="off" placeholder="AIza...">
+      <label for="gmodel" style="margin-top:8px">Gemini model</label>
+      <input id="gmodel" type="text" autocomplete="off" value="gemini-2.5-flash" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
     </div>
     <label style="margin-top:8px"><input type="checkbox" id="remember"> Remember key on this device</label>
   </div>
@@ -597,6 +604,52 @@ function shrinkToB64(f,maxSide){
 
 function toBase64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('The photo could not be read. Tap "Choose file" and select the photo again.'));r.readAsDataURL(f)})}
 
+
+function curKey(){return PROVIDER==='openai'?document.getElementById('okey').value.trim():PROVIDER==='gemini'?document.getElementById('gkey').value.trim():document.getElementById('key').value.trim()}
+function provName(){return PROVIDER==='openai'?'OpenAI':PROVIDER==='gemini'?'Google Gemini':'Anthropic'}
+function provHost(){return PROVIDER==='openai'?'api.openai.com':PROVIDER==='gemini'?'generativelanguage.googleapis.com':'api.anthropic.com'}
+// Sends the sheet photo to the chosen provider, streams the answer, returns the full text.
+async function visionRead(data,mime,onTick){
+  const key=curKey(), prompt=aiPrompt();
+  let url,headers,body;
+  if(PROVIDER==='openai'){
+    url='https://api.openai.com/v1/chat/completions';
+    headers={'Content-Type':'application/json','Authorization':'Bearer '+key};
+    body={model:(document.getElementById('omodel').value.trim()||'gpt-4o'),max_completion_tokens:4000,stream:true,
+      messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}]}]};
+  }else if(PROVIDER==='gemini'){
+    const gm=(document.getElementById('gmodel').value.trim()||'gemini-2.5-flash');
+    url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gm)+':streamGenerateContent?alt=sse';
+    headers={'Content-Type':'application/json','x-goog-api-key':key};
+    const gc={maxOutputTokens:8192}; if(/flash/i.test(gm)&&/2\.5/.test(gm)) gc.thinkingConfig={thinkingBudget:0};
+    body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:data}}]}],generationConfig:gc};
+  }else{
+    url='https://api.anthropic.com/v1/messages';
+    headers={'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+    body={model:'claude-sonnet-5-5',max_tokens:4000,stream:true,
+      messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:data}},{type:'text',text:prompt}]}]};
+  }
+  const r=await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
+  if(!r.ok){let j={};try{j=await r.json()}catch(x){} throw new Error((j.error&&j.error.message)||r.status)}
+  let txt='',buf='';
+  const rd=r.body.getReader(),dec=new TextDecoder();
+  for(;;){
+    const {done,value}=await rd.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n'); buf=lines.pop();
+    for(const ln of lines){
+      if(!ln.startsWith('data:')) continue;
+      const pl=ln.slice(5).trim(); if(!pl||pl==='[DONE]') continue;
+      let ev; try{ev=JSON.parse(pl)}catch(x){continue}
+      if(ev.error) throw new Error(ev.error.message||'stream error');
+      if(PROVIDER==='openai'){const dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta; if(dl&&dl.content) txt+=dl.content;}
+      else if(PROVIDER==='gemini'){const ps=ev.candidates&&ev.candidates[0]&&ev.candidates[0].content&&ev.candidates[0].content.parts; if(ps) ps.forEach(q=>{if(q.text) txt+=q.text});}
+      else{ if(ev.type==='content_block_delta'&&ev.delta&&ev.delta.text) txt+=ev.delta.text; else if(ev.type==='error') throw new Error((ev.error&&ev.error.message)||'stream error'); }
+    }
+    onTick((txt.match(/"sr"/g)||[]).length);
+  }
+  return txt;
+}
 function setP(p){
   p=Math.round(p);
   document.getElementById('prog').hidden=false;
@@ -605,9 +658,8 @@ function setP(p){
 }
 document.getElementById('go').onclick=async()=>{
   if(!requireActive()) return;
-  const f=file.files[0], oa=(PROVIDER==='openai');
-  const key=oa?document.getElementById('okey').value.trim():document.getElementById('key').value.trim();
-  if(!key){st.innerHTML='<span class="err">Please enter your '+(oa?'OpenAI':'Anthropic')+' API key in Settings > API key.</span>';return}
+  const f=file.files[0];
+  if(!curKey()){st.innerHTML='<span class="err">Please enter your '+provName()+' API key in Settings > API key.</span>';return}
   if(!f){st.innerHTML='<span class="err">Please choose a photo first.</span>';return}
   document.getElementById('prog').hidden=true;
   st.textContent='Reading sizes...';
@@ -620,51 +672,7 @@ document.getElementById('go').onclick=async()=>{
     }
     setP(6);
     const mime=mime0;
-    const r=oa
-      ? await fetch('https://api.openai.com/v1/chat/completions',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-          body:JSON.stringify({
-            model:(document.getElementById('omodel').value.trim()||'gpt-4o'),max_completion_tokens:4000,stream:true,
-            messages:[{role:'user',content:[
-              {type:'text',text:aiPrompt()},
-              {type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}
-            ]}]
-          })
-        })
-      : await fetch('https://api.anthropic.com/v1/messages',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-          body:JSON.stringify({
-            model:'claude-sonnet-5-5',max_tokens:4000,stream:true,
-            messages:[{role:'user',content:[
-              {type:'image',source:{type:'base64',media_type:mime,data}},
-              {type:'text',text:aiPrompt()}
-            ]}]
-          })
-        });
-    if(!r.ok){let j={};try{j=await r.json()}catch(x){} throw new Error((j.error&&j.error.message)||r.status)}
-    setP(10);
-    let txt='', buf='';
-    const rd=r.body.getReader(), dec=new TextDecoder();
-    for(;;){
-      const {done,value}=await rd.read(); if(done) break;
-      buf+=dec.decode(value,{stream:true});
-      const lines=buf.split('\n'); buf=lines.pop();
-      for(const ln of lines){
-        if(!ln.startsWith('data:')) continue;
-        if(oa){
-          const p=ln.slice(5).trim(); if(!p||p==='[DONE]') continue;
-          let ev; try{ev=JSON.parse(p)}catch(x){continue}
-          if(ev.error) throw new Error(ev.error.message||'stream error');
-          const dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta; if(dl&&dl.content) txt+=dl.content;
-          continue;
-        }
-        try{ const ev=JSON.parse(ln.slice(5)); if(ev.type==='content_block_delta'&&ev.delta&&ev.delta.text) txt+=ev.delta.text; else if(ev.type==='error') throw new Error(ev.error&&ev.error.message||'stream error') }catch(x){ if(x.message&&x.message!==undefined&&ln.indexOf('"error"')>-1) throw x }
-      }
-      const n=(txt.match(/"sr"/g)||[]).length;
-      setP(10+Math.min(88,n*0.88));
-    }
+    let txt=await visionRead(data,mime,n=>setP(10+Math.min(88,n*0.88)));
     setP(100);
     txt=txt.replace(/```json|```/g,'').trim();
     const parsed=JSON.parse(txt);
@@ -685,7 +693,7 @@ document.getElementById('go').onclick=async()=>{
     st.innerHTML=msg;
     setTimeout(()=>{document.getElementById('prog').hidden=true},800);
   }catch(e){document.getElementById('prog').hidden=true;const em=(e&&e.message)||''; const net=/failed to fetch|networkerror|load failed/i.test(em);
-  st.innerHTML='<span class="err">Error: '+(net?'Could not reach '+(PROVIDER==='openai'?'api.openai.com':'api.anthropic.com')+'. Check internet, and open this app from your own website/app (GitHub Pages / Median), not from the Claude preview.':esc(em?em:(e&&e.type?'could not read the photo - choose it again':String(e))))+'</span>'}
+  st.innerHTML='<span class="err">Error: '+(net?'Could not reach '+provHost()+'. Check internet, and open this app from your own website/app (GitHub Pages / Median), not from the Claude preview.':esc(em?em:(e&&e.type?'could not read the photo - choose it again':String(e))))+'</span>'}
 };
 
 
@@ -1037,15 +1045,15 @@ document.getElementById('key').addEventListener('input',()=>{
 });
 // ---------- AI provider (Anthropic / OpenAI) ----------
 const PROVKEY='logcft_provider_v1', OKEYSTORE='logcft_okey_v1', OMODELKEY='logcft_omodel_v1';
-let PROVIDER='openai'; try{ if(localStorage.getItem(PROVKEY)==='anthropic') PROVIDER='anthropic'; }catch(e){}
+let PROVIDER='openai'; try{ const pv=localStorage.getItem(PROVKEY); if(pv==='anthropic'||pv==='gemini') PROVIDER=pv; }catch(e){}
 function applyProvider(){
-  const o=PROVIDER==='openai';
   document.getElementById('prov').value=PROVIDER;
-  document.getElementById('box-anthropic').hidden=o;
-  document.getElementById('box-openai').hidden=!o;
+  document.getElementById('box-anthropic').hidden=PROVIDER!=='anthropic';
+  document.getElementById('box-openai').hidden=PROVIDER!=='openai';
+  document.getElementById('box-gemini').hidden=PROVIDER!=='gemini';
 }
 document.getElementById('prov').onchange=e=>{
-  PROVIDER=e.target.value==='openai'?'openai':'anthropic';
+  PROVIDER=['openai','gemini'].indexOf(e.target.value)>-1?e.target.value:'anthropic';
   try{localStorage.setItem(PROVKEY,PROVIDER)}catch(x){}
   applyProvider();
 };
@@ -1061,6 +1069,20 @@ document.getElementById('okey').addEventListener('input',()=>{
 });
 document.getElementById('omodel').addEventListener('input',()=>{
   try{localStorage.setItem(OMODELKEY,document.getElementById('omodel').value)}catch(x){}
+});
+const GKEYSTORE='logcft_gkey_v1', GMODELKEY='logcft_gmodel_v1';
+try{
+  const gk=localStorage.getItem(GKEYSTORE); if(gk) document.getElementById('gkey').value=gk;
+  const gm=localStorage.getItem(GMODELKEY); if(gm) document.getElementById('gmodel').value=gm;
+}catch(e){}
+document.getElementById('gkey').addEventListener('input',()=>{
+  try{ if(document.getElementById('remember').checked) localStorage.setItem(GKEYSTORE,document.getElementById('gkey').value);}catch(x){}
+});
+document.getElementById('gmodel').addEventListener('input',()=>{
+  try{localStorage.setItem(GMODELKEY,document.getElementById('gmodel').value)}catch(x){}
+});
+document.getElementById('remember').addEventListener('change',e=>{
+  try{ if(e.target.checked) localStorage.setItem(GKEYSTORE,document.getElementById('gkey').value); else localStorage.removeItem(GKEYSTORE);}catch(x){}
 });
 applyProvider();
 applyMode();
@@ -1080,6 +1102,7 @@ document.getElementById('pp-copy').onclick=async()=>{
   try{ await navigator.clipboard.writeText(t.value); m.textContent='Prompt copied.'; }
   catch(e){ t.focus(); t.select(); m.textContent='Select and copy the prompt text above.'; }
 };
+
 function parsePasted(txt){
   const t=String(txt).replace(/```json|```/g,'').trim();
   const a=t.indexOf('['), b=t.lastIndexOf(']');
