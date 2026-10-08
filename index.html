@@ -319,7 +319,7 @@ body.round .th2,body.round .cft2{display:table-cell}
 <dialog id="dlg-api">
   <div class="tb">Settings: API key</div>
   <div class="bd">
-    <label for="prov">AI provider (sheet photo vachva mate)</label>
+    <label for="prov">AI provider (used to read the sheet photo)</label>
     <select id="prov" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit">
       <option value="anthropic">Anthropic (Claude)</option>
       <option value="openai">OpenAI (GPT)</option>
@@ -332,7 +332,7 @@ body.round .th2,body.round .cft2{display:table-cell}
     <div id="box-openai" style="margin-top:8px" hidden>
       <label for="okey">OpenAI API key (used only in your browser)</label>
       <input id="okey" type="password" autocomplete="off" placeholder="sk-...">
-      <label for="omodel" style="margin-top:8px">OpenAI model (image vachi shake tevu)</label>
+      <label for="omodel" style="margin-top:8px">OpenAI model (must support image input)</label>
       <input id="omodel" type="text" autocomplete="off" value="gpt-4o" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
     </div>
     <div id="box-gemini" style="margin-top:8px" hidden>
@@ -370,6 +370,8 @@ body.round .th2,body.round .cft2{display:table-cell}
 </div>
 
 <div class="box">
+  <label for="sheet-name" style="margin-top:0">Name for sheet heading (optional)</label>
+  <input id="sheet-name" type="text" autocomplete="off" maxlength="60" placeholder="e.g. party / vehicle / lot name" style="display:block;width:100%;box-sizing:border-box;min-height:54px;padding:12px 14px;font-size:1.05rem;margin:4px 0 8px">
   <table>
     <thead><tr><th>#</th><th id="th-size">Size (7776, 7 7 76 or 7x7-76)</th><th id="th-val">CFT</th><th class="th2">CFT</th><th></th></tr></thead>
     <tbody id="rows"></tbody>
@@ -378,6 +380,7 @@ body.round .th2,body.round .cft2{display:table-cell}
     <button id="sort" type="button" class="alt">Sort by first number</button>
     <button id="print" type="button">Print sheet</button>
     <button id="clear" type="button" class="alt">Clear all</button>
+    <button id="wa" type="button" style="grid-column:1/-1;background:#25a244">Share PDF on WhatsApp</button>
   </div>
   <div id="chk" hidden style="margin:8px 0;padding:8px;border:2px solid var(--bad);border-radius:6px;background:#fde8e6">
     <span id="chk-n" style="color:var(--bad);font-weight:600"></span>
@@ -541,12 +544,16 @@ document.getElementById('clear').onclick=async()=>{
   if(!currentRows().length || await askConfirm('Delete all entered sizes? This cannot be undone.','Delete all')){rows.innerHTML='';addRow();update();}
 };
 
+const SHEETNAMEKEY='logcft_sheetname_v1';
+function sheetName(){const e=document.getElementById('sheet-name');return e?e.value.trim():''}
+try{const sn=localStorage.getItem(SHEETNAMEKEY); if(sn) document.getElementById('sheet-name').value=sn}catch(e){}
+document.getElementById('sheet-name').addEventListener('input',()=>{try{localStorage.setItem(SHEETNAMEKEY,document.getElementById('sheet-name').value)}catch(x){}});
 function buildSheet(){
   const l=getList().map(normalize);
   const per=25, colsN=4, pages=Math.max(1,Math.ceil(l.length/(per*colsN)));
   let html='', grand=0;
   for(let pg=0;pg<pages;pg++){
-    html+='<div class="page" style="page-break-after:'+(pg<pages-1?'always':'auto')+'"><h2>'+(MODE==='round'?'ROUND LOG MEASUREMENT SHEET':'MEASUREMENT SHEET')+'</h2><div class="cols">';
+    html+='<div class="page" style="page-break-after:'+(pg<pages-1?'always':'auto')+'"><h2>'+(MODE==='round'?'ROUND LOG MEASUREMENT SHEET':'MEASUREMENT SHEET')+'</h2>'+(sheetName()?'<div style="text-align:center;font-weight:700;font-size:15px;margin:-4px 0 8px">'+esc(sheetName())+'</div>':'')+'<div class="cols">';
     for(let c=0;c<colsN;c++){
       const start=pg*per*colsN+c*per; let tot=0;
       html+='<div class="col"><table style="width:100%;border-collapse:collapse"><thead><tr><th>SR.</th><th>'+(MODE==='round'?'LENGTH x GIRTH':'SIZE')+'</th><th>'+(MODE==='round'?'CBM':'C.F.T.')+'</th></tr></thead><tbody>';
@@ -573,6 +580,101 @@ document.getElementById('print').onclick=()=>{
 
 
 const file=document.getElementById('file'), prev=document.getElementById('prev'), st=document.getElementById('status');
+// ---------- Share the measurement sheet as a PDF (WhatsApp) ----------
+function makeSheetPdf(){
+  const l=getList().map(normalize), round=MODE==='round';
+  const W=595,H=842,M=28,GAP=8,colsN=4,per=25,RH=24,HH=22;
+  const cw=(W-2*M-GAP*(colsN-1))/colsN, perPage=per*colsN, pages=Math.max(1,Math.ceil(l.length/perPage));
+  const esc=t=>String(t).replace(/[^\x20-\x7e]/g,'?').replace(/([\\()])/g,'\\$1');
+  const f2=n=>(Math.round(n*100)/100).toString();
+  const tw=(t,sz)=>{let w=0;for(const ch of String(t))w+=(ch==='.'||ch===' ')?.278:(ch==='-'?.333:.556);return w*sz};
+  const pdfPages=[]; let grand=0;
+  for(let pg=0;pg<pages;pg++){
+    let c='0.6 w\n';
+    const T=(x,y,t,sz,bold,align)=>{ // y measured from top
+      let xx=x; if(align==='r') xx=x-tw(t,sz); else if(align==='c') xx=x-tw(t,sz)/2;
+      c+='BT /'+(bold?'F2':'F1')+' '+sz+' Tf '+f2(xx)+' '+f2(H-y)+' Td ('+esc(t)+') Tj ET\n';
+    };
+    const R=(x,y,w,h)=>{c+=f2(x)+' '+f2(H-y-h)+' '+f2(w)+' '+f2(h)+' re S\n'};
+    const Ln=(x1,y1,x2,y2)=>{c+=f2(x1)+' '+f2(H-y1)+' m '+f2(x2)+' '+f2(H-y2)+' l S\n'};
+    T(W/2,38,round?'ROUND LOG MEASUREMENT SHEET':'MEASUREMENT SHEET',15,true,'c');
+    if(sheetName()) T(W/2,55,sheetName(),12,true,'c');
+    T(W/2,sheetName()?69:54,(getCurrent()?getCurrent()+'  |  ':'')+today()+(pages>1?'  |  Page '+(pg+1)+'/'+pages:''),9,false,'c');
+    const top=sheetName()?80:66;
+    for(let ci=0;ci<colsN;ci++){
+      const x=M+ci*(cw+GAP), start=pg*perPage+ci*per; let tot=0;
+      const sr=26, sz=round?66:60;
+      R(x,top,cw,HH+per*RH+HH);
+      c+='0.9 g '+f2(x)+' '+f2(H-top-HH)+' '+f2(cw)+' '+HH+' re f 0 g\n';
+      R(x,top,cw,HH);
+      T(x+sr/2,top+15,'SR.',8,true,'c');
+      T(x+sr+(sz)/2,top+15,round?'LENGTH x GIRTH':'SIZE',8,true,'c');
+      T(x+cw-4,top+15,round?'CBM':'C.F.T.',8,true,'r');
+      for(let i=0;i<per;i++){
+        const idx=start+i, y=top+HH+i*RH; Ln(x,y,x+cw,y);
+        T(x+sr/2,y+16,String(idx+1).padStart(2,'0'),9,false,'c');
+        const v=l[idx]; if(v===undefined) continue;
+        const cft=calc(v); if(cft!==null) tot+=cft;
+        T(x+sr+sz/2,y+16,round?v.replace('x',' x '):v,9,false,'c');
+        T(x+cw-4,y+16,cft===null?'?':(round?cft.toFixed(3):String(Math.round(cft*100))),9,false,'r');
+      }
+      const yb=top+HH+per*RH; Ln(x,yb,x+cw,yb);
+      T(x+4,yb+15,'TOTAL:',8,true);
+      T(x+cw-4,yb+15,fmtVal(tot),9,true,'r');
+      Ln(x+sr,top,x+sr,yb); Ln(x+sr+sz,top,x+sr+sz,yb);
+      grand+=tot;
+    }
+    if(pg===pages-1){
+      const g='Total '+(round?'CBM':'CFT')+': '+fmtVal(grand)+'   ('+l.length+' logs)'+(round?'   CFT: '+(grand*CFT_PER_CBM).toFixed(2):'');
+      T(W/2,top+2*HH+per*RH+26,g,13,true,'c');
+    }
+    pdfPages.push(c);
+  }
+  // assemble PDF
+  const objs=[]; const add=t=>{objs.push(t);return objs.length};
+  add('<< /Type /Catalog /Pages 2 0 R >>');
+  add('PAGES');
+  add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  const kids=[];
+  pdfPages.forEach(cs=>{
+    const cid=objs.length+2;
+    kids.push(add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+cid+' 0 R >>')+' 0 R');
+    add('<< /Length '+cs.length+' >>\nstream\n'+cs+'endstream');
+  });
+  objs[1]='<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+kids.length+' >>';
+  let out='%PDF-1.4\n', offs=[];
+  objs.forEach((o,i)=>{offs.push(out.length);out+=(i+1)+' 0 obj\n'+o+'\nendobj\n'});
+  const xr=out.length;
+  out+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n'+offs.map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R >>\nstartxref\n'+xr+'\n%%EOF';
+  const bytes=new Uint8Array(out.length); for(let i=0;i<out.length;i++) bytes[i]=out.charCodeAt(i)&255;
+  return {blob:new Blob([bytes],{type:'application/pdf'}), total:grand, count:l.length};
+}
+document.getElementById('wa').onclick=async()=>{
+  if(!getList().length){st.innerHTML='<span class="err">Add some sizes first.</span>';return}
+  if(!requireActive()) return;
+  sortRows();
+  const r=makeSheetPdf();
+  const base=(sheetName()||getCurrent()||('log-sheet-'+today())).replace(/[^\w\-]+/g,'_');
+  const fname=base+'.pdf', file=new File([r.blob],fname,{type:'application/pdf'});
+  const text=(MODE==='round'?'Round log sheet':'Log sheet')+' - '+r.count+' logs, Total '+(MODE==='round'?'CBM ':'CFT ')+fmtVal(r.total);
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:fname,text:text});
+      return;
+    }
+    throw new Error('noshare');
+  }catch(e){
+    if(e&&e.name==='AbortError') return;
+    // Fallback: download the PDF, then open WhatsApp so it can be attached
+    const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    st.innerHTML='PDF saved as <strong>'+esc(fname)+'</strong>. WhatsApp will open - attach the PDF there (paperclip > Document) and send it.';
+    setTimeout(()=>{window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank')},600);
+  }
+};
+
 let cachedB64=null, cachedMime='image/jpeg';
 file.onchange=()=>{
   const f=file.files[0]; if(!f) return;
