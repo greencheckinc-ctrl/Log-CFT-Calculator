@@ -339,7 +339,7 @@ body.round .th2,body.round .cft2{display:table-cell}
       <label for="gkey">Google Gemini API key (free: aistudio.google.com/app/apikey)</label>
       <input id="gkey" type="password" autocomplete="off" placeholder="AIza...">
       <label for="gmodel" style="margin-top:8px">Gemini model</label>
-      <input id="gmodel" type="text" autocomplete="off" value="gemini-2.5-flash" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+      <input id="gmodel" type="text" autocomplete="off" value="gemini-3.8-flash" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
     </div>
     <label style="margin-top:8px"><input type="checkbox" id="remember"> Remember key on this device</label>
   </div>
@@ -618,10 +618,10 @@ async function visionRead(data,mime,onTick){
     body={model:(document.getElementById('omodel').value.trim()||'gpt-4o'),max_completion_tokens:4000,stream:true,
       messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}]}]};
   }else if(PROVIDER==='gemini'){
-    const gm=(document.getElementById('gmodel').value.trim()||'gemini-2.5-flash');
+    const gm=(document.getElementById('gmodel').value.trim()||'gemini-3.8-flash');
     url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gm)+':streamGenerateContent?alt=sse';
     headers={'Content-Type':'application/json','x-goog-api-key':key};
-    const gc={maxOutputTokens:8192}; if(/flash/i.test(gm)&&/2\.5/.test(gm)) gc.thinkingConfig={thinkingBudget:0};
+    const gc={maxOutputTokens:16000}; if(/flash/i.test(gm)&&/2\.5/.test(gm)) gc.thinkingConfig={thinkingBudget:0};
     body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:data}}]}],generationConfig:gc};
   }else{
     url='https://api.anthropic.com/v1/messages';
@@ -1073,7 +1073,7 @@ document.getElementById('omodel').addEventListener('input',()=>{
 const GKEYSTORE='logcft_gkey_v1', GMODELKEY='logcft_gmodel_v1';
 try{
   const gk=localStorage.getItem(GKEYSTORE); if(gk) document.getElementById('gkey').value=gk;
-  const gm=localStorage.getItem(GMODELKEY); if(gm) document.getElementById('gmodel').value=gm;
+  const gm=localStorage.getItem(GMODELKEY); if(gm&&!/^gemini-2\.5-flash$/.test(gm)) document.getElementById('gmodel').value=gm;
 }catch(e){}
 document.getElementById('gkey').addEventListener('input',()=>{
   try{ if(document.getElementById('remember').checked) localStorage.setItem(GKEYSTORE,document.getElementById('gkey').value);}catch(x){}
