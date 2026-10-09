@@ -75,7 +75,9 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .files li{display:flex;gap:8px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:6px 0}
 .files li.cur{background:#f6ead6}
 .files .nm{flex:1;min-width:0;overflow-wrap:anywhere}
-.files .meta{font-size:.8rem;opacity:.75}
+.files .meta{font-size:.72rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.files .nm strong{font-size:.86rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files li{gap:6px;padding:5px 0}
 .files button{padding:6px 10px;font-size:.9rem}
 #fname{width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff;font:inherit}
 
@@ -285,7 +287,6 @@ body.fix > .box{display:none}
 #dlg-merge .ft button{min-height:46px;padding:8px 22px}
 #dlg-merge label{display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin:10px 0 4px}
 #dlg-merge .mfin,#dlg-merge .mfr input{width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
-body:not(.fix) #mi-merge{display:none}
 #mfbox th,#mfbox td{padding:6px 3px;font-size:.88rem}
 .mfr{display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin:0 0 8px}
 .mfr button{min-height:46px;padding:0;background:transparent;color:var(--bad);border:1px solid var(--line);box-shadow:none}
@@ -550,7 +551,10 @@ html.locked body{overflow:hidden}
 
 <div class="box">
   <strong id="grp-title">By first number</strong>
-  <table><thead><tr><th id="grp-h1">Size</th><th>Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
+  <div class="bar" id="grp-sortbar"><button type="button" id="gs-k">Sort by size</button><button type="button" id="gs-n" class="alt">Sort by logs</button><button type="button" id="gs-c" class="alt">Sort by CFT</button></div>
+  <div id="grp-ranges"></div>
+  <div class="bar" style="grid-template-columns:1fr 1fr"><button type="button" id="gr-add" class="alt">+ Range</button><button type="button" id="gr-clear" class="alt">Clear ranges</button></div>
+  <table><thead><tr><th id="grp-h1">Size</th><th id="grp-h2">Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
 </div>
 <dialog id="dlg-merge">
   <div class="tb">Merge &amp; sort table</div>
@@ -703,6 +707,78 @@ function load(){
     v.forEach(x=>addRow(String(x)));
   }catch(e){}
 }
+// "By length" / "By first number" table: tap a header to sort (tap again = reverse)
+var GSORT={k:'k',d:1};
+try{const gsv=JSON.parse(localStorage.getItem('logcft_gsort_v1')||'null'); if(gsv&&['k','n','c'].indexOf(gsv.k)>-1) GSORT={k:gsv.k,d:gsv.d===-1?-1:1}}catch(e){}
+function gHeads(){
+  const r=MODE==='round';
+  const lab={k:r?'Length':'Size',n:'Logs',c:r?'CBM':'CFT'}, ids={k:'grp-h1',n:'grp-h2',c:'grp-h3'};
+  Object.keys(ids).forEach(k=>{
+    const el=document.getElementById(ids[k]); if(!el) return;
+    el.textContent=lab[k]+(GSORT.k===k?(GSORT.d===1?' \u25B2':' \u25BC'):'');
+    el.style.cursor='pointer'; el.style.userSelect='none';
+    el.setAttribute('role','button'); el.setAttribute('tabindex','0');
+    el.title='Tap to sort';
+  });
+  const sl={k:r?'length':'size',n:'logs',c:r?'CBM':'CFT'}, sb={k:'gs-k',n:'gs-n',c:'gs-c'};
+  Object.keys(sb).forEach(k=>{
+    const b=document.getElementById(sb[k]); if(!b) return;
+    b.textContent='Sort by '+sl[k]+(GSORT.k===k?(GSORT.d===1?' \u25B2':' \u25BC'):'');
+    b.className=GSORT.k===k?'':'alt';
+  });
+}
+// Length ranges for the "By length" table (kept separately for each sheet type)
+var GR_DATA=null;
+function grAll(){
+  if(!GR_DATA){GR_DATA={sawn:[],round:[]}; try{const v=JSON.parse(localStorage.getItem('logcft_grange_v1')||'null'); if(v&&typeof v==='object'){['sawn','round'].forEach(m=>{if(Array.isArray(v[m])) GR_DATA[m]=v[m].map(r=>({f:String((r&&r.f)||''),t:String((r&&r.t)||'')}))})}}catch(e){}}
+  return GR_DATA;
+}
+function grList(){const a=grAll(); return a[MODE==='round'?'round':'sawn']}
+function grSave(){try{localStorage.setItem('logcft_grange_v1',JSON.stringify(grAll()))}catch(e){}}
+function grInR(v,r){
+  let f=parseFloat(String(r.f).replace(',','.')), t=String(r.t).trim()===''?Infinity:parseFloat(String(r.t).replace(',','.'));
+  if(!(f>=0)) f=0; if(!(t>=0)) t=Infinity;
+  return v>=f-1e-9&&v<=t+1e-9;
+}
+function grLabel(r){
+  const f=String(r.f).trim()||'0', t=String(r.t).trim(), u=MODE==='round'?' m':' x';
+  return t?f+' - '+t+u:f+' upper'+u;
+}
+function gRowsHtml(g,gks){
+  const rg=grList(), r=MODE==='round';
+  const row=k=>'<tr><td>'+(r?parseFloat(k)+' m':k+' x')+'</td><td>'+g[k].n+'</td><td>'+fmtVal(g[k].c)+'</td></tr>';
+  if(!rg.length) return gks.map(row).join('');
+  const buckets=rg.map(x=>({label:grLabel(x),keys:[]})), other=[];
+  gks.forEach(k=>{
+    let ok=false; const v=parseFloat(k);
+    for(let i=0;i<rg.length;i++){ if(grInR(v,rg[i])){buckets[i].keys.push(k);ok=true;break} }
+    if(!ok) other.push(k);
+  });
+  if(other.length) buckets.push({label:'Other',keys:other});
+  let h='';
+  buckets.forEach(b=>{
+    if(!b.keys.length) return;
+    let n=0,c=0; b.keys.forEach(k=>{n+=g[k].n;c+=g[k].c});
+    h+='<tr><td colspan="3" style="background:var(--soft);color:var(--dark);font-weight:700;border-top:2px solid var(--wood)">'+esc(b.label)+'</td></tr>';
+    h+=b.keys.map(row).join('');
+    h+='<tr><td style="font-weight:700;background:#fafafa">Total</td><td style="font-weight:700;background:#fafafa">'+n+'</td><td style="font-weight:700;background:#fafafa">'+fmtVal(c)+'</td></tr>';
+  });
+  return h;
+}
+function grRender(){
+  const box=document.getElementById('grp-ranges'); if(!box) return;
+  const rg=grList(), u=MODE==='round'?'m':'';
+  box.innerHTML=rg.length?'<div class="sub" style="font-size:.8rem;margin:0 0 4px">Length Range'+(u?' ('+u+')':'')+'</div>'+rg.map((x,i)=>
+    '<div style="display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin:0 0 8px">'
+    +'<input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="f" value="'+esc(x.f)+'" placeholder="From" aria-label="From length" style="min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;width:100%;box-sizing:border-box">'
+    +'<input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="t" value="'+esc(x.t)+'" placeholder="To (khali = upper)" aria-label="To length" style="min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;width:100%;box-sizing:border-box">'
+    +'<button type="button" data-x="'+i+'" aria-label="Remove range" class="alt" style="min-height:46px;padding:0;color:var(--bad)">x</button></div>').join(''):'';
+}
+function gSortBy(k){
+  if(GSORT.k===k) GSORT.d=-GSORT.d; else GSORT={k:k,d:1};
+  try{localStorage.setItem('logcft_gsort_v1',JSON.stringify(GSORT))}catch(e){}
+  update();
+}
 function update(){
   let sum=0,sumCft=0,cnt=0,i=1;
   rows.querySelectorAll('tr').forEach(tr=>{
@@ -723,7 +799,13 @@ function update(){
     const key=MODE==='round'? roundVol(v).m.toFixed(2) : parseSize(v).a;
     (g[key]=g[key]||{n:0,c:0}).n++; g[key].c+=c;
   });
-  document.getElementById('grp').innerHTML=Object.keys(g).sort((x,y)=>x-y).map(k=>'<tr><td>'+(MODE==='round'?parseFloat(k)+' m':k+' x')+'</td><td>'+g[k].n+'</td><td>'+fmtVal(g[k].c)+'</td></tr>').join('')||'<tr><td colspan="3">-</td></tr>';
+  const gks=Object.keys(g).sort((x,y)=>{
+    let a,b;
+    if(GSORT.k==='n'){a=g[x].n;b=g[y].n}else if(GSORT.k==='c'){a=g[x].c;b=g[y].c}else{a=parseFloat(x);b=parseFloat(y)}
+    return (a-b)*GSORT.d||(parseFloat(x)-parseFloat(y));
+  });
+  gHeads();
+  document.getElementById('grp').innerHTML=gRowsHtml(g,gks)||'<tr><td colspan="3">-</td></tr>';
   document.getElementById('sum').textContent=fmtVal(sum);
   document.getElementById('tot2').textContent=MODE==='round'?'Total CFT: '+sumCft.toFixed(2):'';
   save(); scheduleAutoSave();
@@ -743,6 +825,26 @@ function sortRows(){
   rows.innerHTML=''; l.forEach(v=>addRow(v)); update();
 }
 document.getElementById('sort').onclick=sortRows;
+document.getElementById('grp-ranges').addEventListener('input',e=>{
+  const i=e.target.getAttribute('data-i'), k=e.target.getAttribute('data-k'); if(i===null) return;
+  grList()[+i][k]=e.target.value; grSave(); update();
+});
+document.getElementById('grp-ranges').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-x]'); if(!b) return;
+  grList().splice(+b.getAttribute('data-x'),1); grSave(); grRender(); update();
+});
+document.getElementById('gr-add').onclick=()=>{
+  const l=grList(), last=l[l.length-1], lt=last&&String(last.t).trim()?parseFloat(String(last.t).replace(',','.')):NaN;
+  l.push({f:isNaN(lt)?'':String(Math.round((lt+(MODE==='round'?0.05:0.25))*100)/100),t:''});
+  grSave(); grRender(); update();
+};
+document.getElementById('gr-clear').onclick=()=>{grList().length=0; grSave(); grRender(); update()};
+[['gs-k','k'],['gs-n','n'],['gs-c','c']].forEach(a=>{document.getElementById(a[0]).onclick=()=>gSortBy(a[1])});
+[['grp-h1','k'],['grp-h2','n'],['grp-h3','c']].forEach(a=>{
+  const el=document.getElementById(a[0]);
+  el.addEventListener('click',()=>gSortBy(a[1]));
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();gSortBy(a[1])}});
+});
 let badPos=-1;
 document.getElementById('chk-go').onclick=()=>{
   const bad=[...rows.querySelectorAll('tr.bad')]; if(!bad.length) return;
@@ -1063,7 +1165,7 @@ function renderFiles(){
     const list=f[n].rows||[];
     li.innerHTML='<div class="nm"><strong>'+esc(n)+'</strong><div class="meta">'+fileMeta(f[n])+'</div></div>'
       +(listMode==='open'
-        ?'<div style="display:flex;flex-direction:row;gap:6px;flex:none;align-items:center"><button type="button" class="alt" data-a="open" style="padding:8px 12px;font-size:.9rem">Open</button><button type="button" class="alt" data-a="ren" style="padding:8px 12px;font-size:.9rem">Rename</button></div>'
+        ?'<div style="display:flex;flex-direction:row;gap:6px;flex:none;align-items:center"><button type="button" class="alt" data-a="open" style="padding:6px 8px;font-size:.78rem;min-height:0">Open</button><button type="button" class="alt" data-a="ren" style="padding:6px 8px;font-size:.78rem;min-height:0">Rename</button><button type="button" class="alt" data-a="del" aria-label="Delete file" title="Delete" style="padding:6px 0;width:32px;font-size:1rem;line-height:1;min-height:0;color:var(--bad);border-color:var(--bad)">&times;</button></div>'
         :'<button type="button" class="alt" data-a="del" style="color:var(--bad);border-color:var(--bad)">Delete</button>');
     const ob=li.querySelector('[data-a=open]'), db=li.querySelector('[data-a=del]');
     if(ob) ob.onclick=()=>{document.getElementById('dlg-list').close();openFile(n)};
@@ -1567,7 +1669,7 @@ function loadFileInto(e){
 }
 function fileMeta(e){
   if((e.mode||'sawn')==='fix'){
-    try{const o=fxClean(JSON.parse(e.fx||'null')); let p=0,c=0; o.blocks.forEach(b=>b.rows.forEach(r=>{const v=fxCft(b,r);if(v!==null){p+=fxNum(r.p);c+=v}})); return (Math.round(p*100)/100)+' pcs, '+c.toFixed(2)+' CFT (fixed size)'}catch(x){return 'Fixed size'}
+    try{const o=fxClean(JSON.parse(e.fx||'null')); let p=0,c=0; o.blocks.forEach(b=>b.rows.forEach(r=>{const v=fxCft(b,r);if(v!==null){p+=fxNum(r.p);c+=v}})); return (Math.round(p*100)/100)+' pcs, '+c.toFixed(2)+' CFT (fixed)'}catch(x){return 'Fixed size'}
   }
   const list=e.rows||[]; return list.length+' logs, '+fmtVal(totalOf(list,e.mode),e.mode||'sawn')+(e.mode==='round'?' CBM':' CFT');
 }
@@ -1580,6 +1682,7 @@ const ROUND_PROMPT='This is a round wood log measurement sheet with serial numbe
 function aiPrompt(){return MODE==='round'?ROUND_PROMPT:SAWN_PROMPT}
 function applyMode(){
   const r=MODE==='round';
+  try{grRender()}catch(e){}
   document.body.classList.toggle('round',r);
   document.body.classList.toggle('fix',MODE==='fix');
   document.getElementById('mode-sawn').setAttribute('aria-pressed',String(MODE==='sawn'));
