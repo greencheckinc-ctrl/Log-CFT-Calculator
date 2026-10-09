@@ -265,6 +265,33 @@ body.fix > .box{display:none}
 #pv-sheet .tot{font-size:14px;padding:2mm}
 #pv-sheet .grand{font-size:16px;margin-top:3mm}
 </style>
+<style>
+.mgfiles{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+.mgfiles label{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:0;border-bottom:1px solid var(--line);cursor:pointer;font-weight:400}
+.mgfiles label:last-child{border-bottom:0}
+.mgfiles input{width:20px;height:20px;flex:none}
+.mgfiles small{color:var(--muted);margin-left:auto;white-space:nowrap}
+.mgrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.mgrow button{width:100%;min-height:46px;padding:8px 6px}
+.mgadd{display:grid;grid-template-columns:1fr 80px auto;gap:8px;margin:8px 0 0}
+.mgadd input{width:100%;box-sizing:border-box;min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+#dlg-merge .mgfiles label{display:flex;flex-direction:row;align-items:center;gap:12px;margin:0;padding:12px;font-size:.95rem;font-weight:600;color:var(--ink);text-align:left}
+#dlg-merge .mgfiles input{width:22px;height:22px;min-height:0;padding:0;margin:0;flex:none}
+#dlg-merge .mgfiles label span{flex:1;min-width:0;word-break:break-word}
+#dlg-merge .mgfiles label small{margin-left:auto;font-weight:400;white-space:nowrap}
+#dlg-merge{width:100%;max-width:760px;height:100vh;height:100dvh;max-height:100dvh;border-radius:0;margin:0 auto}
+#dlg-merge[open]{display:flex;flex-direction:column}
+#dlg-merge .bd{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+#dlg-merge .ft button{min-height:46px;padding:8px 22px}
+#dlg-merge label{display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin:10px 0 4px}
+#dlg-merge .mfin,#dlg-merge .mfr input{width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+body:not(.fix) #mi-merge{display:none}
+#mfbox th,#mfbox td{padding:6px 3px;font-size:.88rem}
+.mfr{display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin:0 0 8px}
+.mfr button{min-height:46px;padding:0;background:transparent;color:var(--bad);border:1px solid var(--line);box-shadow:none}
+#mf-rows tr.gh td{background:var(--soft);color:var(--dark);font-weight:700;border-top:2px solid var(--wood)}
+#mf-rows tr.gt td{font-weight:700;background:#fafafa}
+</style>
 </head>
 <body>
 <div id="splash" aria-hidden="true">
@@ -302,6 +329,7 @@ body.fix > .box{display:none}
       <button type="button" role="menuitem" id="mi-open">Open... <span class="sc">Ctrl+O</span></button>
       <button type="button" role="menuitem" id="mi-save">Save <span class="sc">Ctrl+S</span></button>
       <button type="button" role="menuitem" id="mi-saveas">Save As...</button>
+      <button type="button" role="menuitem" id="mi-merge">Merge &amp; sort...</button>
       <hr>
       <button type="button" role="menuitem" id="mi-delete">Delete...</button>
     </div>
@@ -466,6 +494,29 @@ body.fix > .box{display:none}
   <strong id="grp-title">By first number</strong>
   <table><thead><tr><th id="grp-h1">Size</th><th>Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
 </div>
+<dialog id="dlg-merge">
+  <div class="tb">Merge &amp; sort table</div>
+  <div class="bd" id="mfbox">
+    <div class="sub" style="font-size:.85rem;margin:0 0 8px">Saved Fixed size files select karo. Badhi size merge thai ne length range na heading under sort thase.</div>
+    <label for="mf-title">Company name</label>
+    <input id="mf-title" type="text" class="mfin" autocomplete="off" maxlength="60">
+    <div class="fx2">
+      <div><label for="mf-date">Date</label><input id="mf-date" type="date" class="mfin"></div>
+      <div><label for="mf-truck">Truck no.</label><input id="mf-truck" type="text" class="mfin" autocomplete="off" maxlength="30"></div>
+    </div>
+    <div style="font-weight:700;margin:14px 0 4px">Files</div>
+    <div id="mf-files" class="mgfiles"></div>
+    <div class="mgrow"><button type="button" class="alt" id="mf-all">Select all</button><button type="button" class="alt" id="mf-none">Select none</button></div>
+    <div style="font-weight:700;margin:12px 0 4px">Length Range</div>
+    <div id="mf-ranges"></div>
+    <div class="mgrow"><button type="button" class="alt" id="mf-addrange">+ Range</button><button type="button" class="alt" id="mf-reset">Reset ranges</button></div>
+    <div class="mgrow"><button type="button" id="mf-bysize">Sort by size</button><button type="button" class="alt" id="mf-bylen">Sort by length</button></div>
+    <div id="mf-msg" role="status" style="font-size:.85rem;min-height:1.1em;margin:4px 0"></div>
+    <table><thead><tr><th>Size</th><th>Length</th><th>Pcs</th><th>CFT</th></tr></thead><tbody id="mf-rows"></tbody></table>
+    <div class="total" style="font-size:1.1rem">Total CFT: <span id="mf-sum">0.00</span> &nbsp;(<span id="mf-cnt">0</span> pcs)</div>
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button><button type="button" id="mf-print">Print</button></div>
+</dialog>
 <dialog id="dlg-preview">
   <div class="tb">Print preview</div>
   <div class="bd"><div id="pv-box"><div id="pv-page"><div id="pv-sheet" class="sheet"></div></div></div></div>
@@ -502,13 +553,13 @@ body.fix > .box{display:none}
 const MODEKEY='logcft_mode_v1';
 let MODE='sawn'; try{ const mk=localStorage.getItem(MODEKEY); if(mk==='round'||mk==='fix') MODE=mk; }catch(e){}
 // Round log: CFT = Girth(cm) x Girth(cm) x Length(m) x 2.2072 / 10000 ; CBM = CFT / 35.3147
-// Length code: 2 digits = decimetres (25 = 2.5 m), 3 digits = centimetres (205 = 2.05 m)
+// Length code: 2 digits = 2 m + cm (60 = 2.60 m, 55 = 2.55 m), 3 digits = centimetres (205 = 2.05 m)
 const CFT_FACTOR=2.2072, CFT_PER_CBM=35.3147;
 function lengthM(raw){
   const t=String(raw);
   if(t.indexOf('.')>-1) return parseFloat(t);
   const n=parseInt(t,10); if(isNaN(n)) return null;
-  return n>=100? n/100 : n/10;
+  return n>=100? n/100 : 2+n/100;
 }
 function parseRound(size){
   const t=String(size).trim().match(/\d+(?:\.\d+)?/g); if(!t) return null;
@@ -624,7 +675,7 @@ function getList(){
   return [...rows.querySelectorAll('input')].map(i=>i.value.trim()).filter(v=>v);
 }
 function sortKey(v){
-  if(MODE==="round"){const r=parseRound(v);return r?[parseFloat(r.L),r.g,0]:[1e9,0,0]} // sort by typed length: 20,30..99,100..200
+  if(MODE==="round"){const r=parseRound(v);return r?[r.m,r.g,0]:[1e9,0,0]} // sort by length in metres
   const p=parseSize(v); if(!p) return [1e9,0,0];
   return [p.a,p.b,lengthFt(p.code)];
 }
@@ -1776,6 +1827,149 @@ if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostn
 (function(){var sp=document.getElementById('splash');if(!sp)return;
 function go(){sp.classList.add('hide');setTimeout(function(){sp.remove()},600)}
 setTimeout(go,1800);})();
+</script>
+<script>
+// ---------- Fixed size: merge & sort table (grouped by length range) ----------
+(function(){
+  var KEY='logcft_merge_fix_v2';
+  var DEF=[{f:'3',t:'5.75'},{f:'6',t:'7.75'},{f:'8',t:''}];
+  var ST={};
+  try{ST=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){ST={}}
+  if(!Array.isArray(ST.sel))ST.sel=[];
+  if(!Array.isArray(ST.ranges))ST.ranges=JSON.parse(JSON.stringify(DEF));
+  if(ST.by!=='length')ST.by='size';
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(ST))}catch(e){}}
+  function E(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function $(id){return document.getElementById(id)}
+  function mk(size,note,l,p){
+    var b={size:size,note:note},d=fxSizeOf(b),ln=fxNum(l),pc=fxNum(p);
+    if(!d||!(ln>0)||!(pc>0))return null;
+    return {key:fxFull(b)+'|'+ln,label:fxFull(b),w:d.w,t:d.t,l:ln,p:pc};
+  }
+  function cmpFn(by){return function(x,y){
+    var a=by==='length'?[x.l,x.w,x.t]:[x.w,x.t,x.l],b=by==='length'?[y.l,y.w,y.t]:[y.w,y.t,y.l];
+    for(var i=0;i<3;i++){if(a[i]!==b[i])return a[i]-b[i]}
+    return x.label<y.label?-1:x.label>y.label?1:0}}
+  function items(){
+    var f=readFiles(),map={};
+    ST.sel=ST.sel.filter(function(n){return f[n]&&f[n].mode==='fix'});
+    ST.sel.forEach(function(n){var o;try{o=fxClean(JSON.parse(f[n].fx||'null'))}catch(e){return}
+      o.blocks.forEach(function(b){b.rows.forEach(function(r){var it=mk(b.size,b.note,r.l,r.p);if(!it)return;
+        if(map[it.key])map[it.key].p+=it.p;else map[it.key]=it})})});
+    return Object.keys(map).map(function(k){return map[k]});
+  }
+  function rLabel(r){var f=String(r.f).trim()||'0',t=String(r.t).trim();return t?f+' - '+t:f+' upper'}
+  function inR(l,r){var f=fxNum(r.f),t=String(r.t).trim()===''?Infinity:fxNum(r.t);
+    if(!(f>=0))f=0;if(!(t>=0))t=Infinity;return l>=f-1e-9&&l<=t+1e-9}
+  function groups(){
+    var list=items().sort(cmpFn(ST.by));
+    if(!ST.ranges.length)return [{label:'',items:list}];
+    var g=ST.ranges.map(function(r){return {label:rLabel(r),items:[]}}),other=[];
+    list.forEach(function(it){var ok=false;
+      for(var i=0;i<ST.ranges.length;i++){if(inR(it.l,ST.ranges[i])){g[i].items.push(it);ok=true;break}}
+      if(!ok)other.push(it)});
+    if(other.length)g.push({label:'Other lengths',items:other});
+    return g.filter(function(x){return x.items.length});
+  }
+  function sums(arr){var p=0,c=0;arr.forEach(function(it){p+=it.p;c+=it.w*it.t*it.l*it.p/144});return {p:p,c:c}}
+  function mfRenderFiles(){
+    var f=readFiles();
+    var names=Object.keys(f).filter(function(n){return f[n].mode==='fix'}).sort(function(a,b){return (f[b].updated||0)-(f[a].updated||0)});
+    $('mf-files').innerHTML=names.length?names.map(function(n,i){
+      var c=0;try{fxClean(JSON.parse(f[n].fx||'null')).blocks.forEach(function(b){b.rows.forEach(function(r){if(fxCft(b,r)!==null)c+=fxNum(r.p)})})}catch(e){}
+      return '<label><input type="checkbox" data-f="'+i+'"'+(ST.sel.indexOf(n)>-1?' checked':'')+'><span>'+E(n)+'</span><small>'+c+' pcs</small></label>'}).join(''):'<div style="padding:12px">No saved Fixed size files yet.</div>';
+    [].forEach.call($('mf-files').querySelectorAll('input'),function(cb){cb.onchange=function(){
+      var n=names[+cb.getAttribute('data-f')],i=ST.sel.indexOf(n);
+      if(cb.checked&&i<0)ST.sel.push(n);if(!cb.checked&&i>-1)ST.sel.splice(i,1);persist();renderTable()}});
+    renderTable();
+  }
+  function renderRanges(){
+    $('mf-ranges').innerHTML=ST.ranges.length?ST.ranges.map(function(r,i){
+      return '<div class="mfr"><input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="f" value="'+E(r.f)+'" placeholder="From" aria-label="From length">'
+        +'<input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="t" value="'+E(r.t)+'" placeholder="To (khali = upper)" aria-label="To length">'
+        +'<button type="button" data-x="'+i+'" aria-label="Remove range">x</button></div>'}).join(''):'<div class="sub" style="font-size:.85rem">Koi range nathi, badhi size ek j list ma dekhase.</div>';
+  }
+  function renderTable(){
+    var g=groups(),html='',all=[];
+    g.forEach(function(x){all=all.concat(x.items)});
+    g.forEach(function(x){
+      if(x.label)html+='<tr class="gh"><td colspan="4">'+E(x.label)+'</td></tr>';
+      x.items.forEach(function(it){html+='<tr><td>'+E(it.label)+'</td><td class="num">'+fxFmtLen(it.l)+'</td><td class="num">'+it.p+'</td><td class="num">'+(it.w*it.t*it.l*it.p/144).toFixed(2)+'</td></tr>'});
+      if(x.label){var t=sums(x.items);html+='<tr class="gt"><td colspan="2">Total '+E(x.label)+'</td><td class="num">'+t.p+'</td><td class="num">'+t.c.toFixed(2)+'</td></tr>'}
+    });
+    $('mf-rows').innerHTML=html||'<tr><td colspan="4">-</td></tr>';
+    var T=sums(all);$('mf-sum').textContent=T.c.toFixed(2);$('mf-cnt').textContent=T.p;
+    $('mf-bysize').className=ST.by==='size'?'':'alt';$('mf-bylen').className=ST.by==='length'?'':'alt';
+    persist();
+  }
+  $('mf-ranges').addEventListener('input',function(e){var i=e.target.getAttribute('data-i'),k=e.target.getAttribute('data-k');
+    if(i===null)return;ST.ranges[+i][k]=e.target.value;renderTable()});
+  $('mf-ranges').addEventListener('click',function(e){var b=e.target.closest('button[data-x]');if(!b)return;
+    ST.ranges.splice(+b.getAttribute('data-x'),1);renderRanges();renderTable()});
+  $('mf-addrange').onclick=function(){var l=ST.ranges[ST.ranges.length-1],n=l&&String(l.t).trim()?String(fxNum(l.t)+0.25):'';
+    ST.ranges.push({f:n,t:''});renderRanges();renderTable()};
+  $('mf-reset').onclick=function(){ST.ranges=JSON.parse(JSON.stringify(DEF));renderRanges();renderTable()};
+  $('mf-bysize').onclick=function(){ST.by='size';renderTable()};
+  $('mf-bylen').onclick=function(){ST.by='length';renderTable()};
+  $('mf-all').onclick=function(){var f=readFiles();ST.sel=Object.keys(f).filter(function(n){return f[n].mode==='fix'});persist();mfRenderFiles()};
+  $('mf-none').onclick=function(){ST.sel=[];persist();mfRenderFiles()};
+  function hasData(){return items().length>0}
+  function printHtml(){
+    var W=[12,62,34,40,46];   // SR, SIZE, LENGTH, PCS, CFT (mm) = 194mm
+    var B='border:1px solid #000;height:8mm;line-height:8mm;padding:0 3mm;font-size:13px;white-space:nowrap;overflow:hidden;box-sizing:border-box;';
+    function td(c,al,t,x){return '<td style="'+B+'text-align:'+al+';'+(x||'')+'"'+(c?' colspan="'+c+'"':'')+'>'+t+'</td>'}
+    function cols(){return '<colgroup>'+W.map(function(w){return '<col style="width:'+w+'mm">'}).join('')+'</colgroup>'}
+    var tbl='border-collapse:collapse;table-layout:fixed;width:194mm;margin:0 0 5mm;';
+    var h='<div style="font-family:Arial,Helvetica,sans-serif;color:#000;width:194mm">';
+    var ti=String(ST.title||'').trim(),tr=String(ST.truck||'').trim();
+    if(ti)h+='<div style="font-size:20px;font-weight:700;text-align:center;letter-spacing:.5px">'+E(ti.toUpperCase())+'</div>';
+    h+='<div style="border-bottom:2px solid #000;margin:2mm 0 3mm"></div>';
+    h+='<div style="display:flex;justify-content:space-between;gap:6mm;font-size:13px;margin-bottom:1.5mm"><span><b>Date:</b> '+E(fxDate(ST.date||today()))+'</span>'
+      +'<span style="text-align:right"><b>Truck No.:</b> '+(tr?E(tr.toUpperCase()):'<span style="display:inline-block;width:42mm;border-bottom:1px solid #000">&nbsp;</span>')+'</span></div>';
+    h+='<div style="margin-bottom:4mm"></div>';
+    var G=groups();
+    G.forEach(function(x){
+      h+='<table style="'+tbl+'">'+cols()+'<thead>';
+      if(x.label)h+='<tr>'+td(5,'left','LENGTH &nbsp;'+E(x.label)+(/upper|Other/.test(x.label)?'':' FT'),'background:#d9d9d9;font-weight:800;font-size:14px')+'</tr>';
+      h+='<tr style="background:#f0f0f0;font-weight:700;font-size:12px">'+td(0,'center','SR.')+td(0,'center','SIZE')+td(0,'right','LENGTH')+td(0,'right','PCS')+td(0,'right','CFT')+'</tr></thead><tbody>';
+      x.items.forEach(function(it,i){
+        h+='<tr style="page-break-inside:avoid">'+td(0,'center',i+1)+td(0,'left',E(it.label))+td(0,'right',fxFmtLen(it.l))+td(0,'right',it.p)+td(0,'right',(it.w*it.t*it.l*it.p/144).toFixed(2))+'</tr>'});
+      var t=sums(x.items);
+      h+='<tr style="font-weight:800;background:#e8e8e8;page-break-inside:avoid">'+td(3,'right','TOTAL'+(x.label?' ('+E(x.label)+')':''))+td(0,'right',t.p)+td(0,'right',t.c.toFixed(2))+'</tr></tbody></table>';
+    });
+    var T=sums(items());
+    if(G.length>1){
+      h+='<table style="'+tbl+'page-break-inside:avoid">'+cols()+'<thead><tr>'+td(5,'left','SUMMARY','background:#d9d9d9;font-weight:800;font-size:14px')+'</tr>'
+        +'<tr style="background:#f0f0f0;font-weight:700;font-size:12px">'+td(3,'left','LENGTH RANGE')+td(0,'right','PCS')+td(0,'right','CFT')+'</tr></thead><tbody>';
+      G.forEach(function(x){var t=sums(x.items);h+='<tr>'+td(3,'left',E(x.label))+td(0,'right',t.p)+td(0,'right',t.c.toFixed(2))+'</tr>'});
+      h+='</tbody></table>';
+    }
+    h+='<table style="'+tbl+'page-break-inside:avoid">'+cols()+'<tr style="font-weight:800;font-size:16px;background:#cfcfcf">'
+      +td(3,'right','GRAND TOTAL','border-width:2px;height:11mm;line-height:11mm;font-size:16px')+td(0,'right',T.p+' pcs','border-width:2px;height:11mm;line-height:11mm;font-size:16px')+td(0,'right',T.c.toFixed(2)+' CFT','border-width:2px;height:11mm;line-height:11mm;font-size:16px')+'</tr></table></div>';
+    return h;
+  }
+  $('mf-print').onclick=function(){
+    if(!hasData()){$('mf-msg').textContent='Pehla file select karo.';return}
+    if(!requireActive())return;
+    $('sheet').innerHTML=printHtml();
+    var wa=$('pv-wa'),dlg=$('dlg-preview');
+    wa.style.display='none';
+    dlg.addEventListener('close',function(){wa.style.display=''},{once:true});
+    showPreview();
+  };
+  var outer=window.renderFiles;
+  window.renderFiles=function(){outer.apply(this,arguments);mfRenderFiles()};
+  function loadHead(){
+    if(ST.title===undefined)ST.title=(FX&&FX.title)||'';
+    if(ST.truck===undefined)ST.truck=(FX&&FX.truck)||'';
+    if(!ST.date)ST.date=today();
+    $('mf-title').value=ST.title;$('mf-truck').value=ST.truck;$('mf-date').value=ST.date;
+  }
+  [['mf-title','title'],['mf-truck','truck'],['mf-date','date']].forEach(function(p){
+    $(p[0]).addEventListener('input',function(){ST[p[1]]=this.value;persist()})});
+  $('mi-merge').onclick=function(){closeMenus();loadHead();renderRanges();mfRenderFiles();$('dlg-merge').showModal()};
+  renderRanges();mfRenderFiles();
+})();
 </script>
 </body>
 </html>
