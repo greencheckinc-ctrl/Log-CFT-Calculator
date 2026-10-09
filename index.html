@@ -292,8 +292,36 @@ body:not(.fix) #mi-merge{display:none}
 #mf-rows tr.gh td{background:var(--soft);color:var(--dark);font-weight:700;border-top:2px solid var(--wood)}
 #mf-rows tr.gt td{font-weight:700;background:#fafafa}
 </style>
+<style>
+#lockscr{display:none;position:fixed;inset:0;z-index:10001;background:linear-gradient(160deg,var(--wood),var(--dark));align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif}
+html.locked #lockscr{display:flex}
+html.locked body{overflow:hidden}
+.lkbox{background:#fff;color:var(--ink);border-radius:18px;padding:26px 22px;width:100%;max-width:360px;box-sizing:border-box;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.lkbox h2{margin:0 0 4px;font-size:1.25rem;color:var(--dark)}
+.lkbox p{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.lkbox input{width:100%;box-sizing:border-box;min-height:56px;padding:10px;border:2px solid var(--line);border-radius:12px;font-size:1.6rem;text-align:center;letter-spacing:.5em;background:#fff}
+.lkbox button{width:100%;min-height:50px;margin-top:10px}
+#lk-msg{min-height:1.2em;margin-top:8px;color:var(--bad);font-size:.88rem}
+.lkbox small{display:block;margin-top:14px;color:var(--muted);cursor:pointer;text-decoration:underline}
+#dlg-lock input[type=password]{width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;letter-spacing:.3em}
+#dlg-lock label{display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin:10px 0 4px}
+#dlg-lock .lrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+#dlg-lock .lrow button{min-height:46px}
+</style>
+<script>try{var _l=JSON.parse(localStorage.getItem('logcft_lock_v1')||'null');if(_l&&_l.hash)document.documentElement.classList.add('locked')}catch(e){}</script>
 </head>
 <body>
+<div id="lockscr" role="dialog" aria-modal="true" aria-label="App lock">
+  <div class="lkbox">
+    <h2>Log CFT/CBM Calculator</h2>
+    <p id="lk-sub">PIN lakho</p>
+    <input id="lk-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" aria-label="PIN">
+    <div id="lk-msg" role="status"></div>
+    <button type="button" id="lk-go">Unlock</button>
+    <button type="button" id="lk-fp" class="alt" hidden>Use fingerprint</button>
+    <small id="lk-forgot">PIN bhuli gaya?</small>
+  </div>
+</div>
 <div id="splash" aria-hidden="true">
   <svg class="splogo" viewBox="0 0 512 512" aria-hidden="true">
     <defs><linearGradient id="lgbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--wood)"/><stop offset="1" style="stop-color:var(--dark)"/></linearGradient></defs>
@@ -340,6 +368,7 @@ body:not(.fix) #mi-merge{display:none}
       <button type="button" role="menuitem" id="mi-about">App info...</button>
       <hr>
       <button type="button" role="menuitem" id="mi-theme">Theme colour...</button>
+      <button type="button" role="menuitem" id="mi-lock">App lock (PIN / Fingerprint)...</button>
       <button type="button" role="menuitem" id="mi-api">API key...</button>
       <button type="button" role="menuitem" id="mi-fb">Sync Setting...</button>
       <button type="button" role="menuitem" id="mi-act">Activation key...</button>
@@ -408,8 +437,37 @@ body:not(.fix) #mi-merge{display:none}
   <div class="ft"><button type="button" class="alt" data-close>Close</button></div>
 </dialog>
 
+<dialog id="dlg-rename">
+  <div class="tb">Rename file</div>
+  <div class="bd">
+    <label for="rn-name">New file name</label>
+    <input id="rn-name" type="text" autocomplete="off" maxlength="60" style="width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit">
+    <div id="rn-msg" role="status" style="color:var(--bad);font-size:.85rem;min-height:1.1em;margin-top:6px"></div>
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Cancel</button><button type="button" id="rn-go">Rename</button></div>
+</dialog>
+
+<dialog id="dlg-lock">
+  <div class="tb">Settings: App lock</div>
+  <div class="bd">
+    <div id="lc-status" style="font-weight:700;margin-bottom:4px"></div>
+    <div id="lc-curwrap"><label for="lc-cur">Current PIN</label><input id="lc-cur" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+    <label for="lc-new" id="lc-newl">New PIN (4 thi 6 ank)</label><input id="lc-new" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <label for="lc-new2">Confirm PIN</label><input id="lc-new2" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <div class="lrow"><button type="button" id="lc-save">Save PIN</button><button type="button" id="lc-remove" class="alt" style="color:var(--bad);border-color:var(--bad)">Remove PIN</button></div>
+    <div id="lc-fpwrap" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
+      <div style="font-weight:700;margin-bottom:6px">Fingerprint</div>
+      <div id="lc-fpstat" class="sub" style="font-size:.85rem;margin:0 0 8px"></div>
+      <button type="button" id="lc-fpbtn" style="width:100%;min-height:46px">Enable fingerprint</button>
+    </div>
+    <div id="lc-msg" role="status" style="font-size:.88rem;min-height:1.2em;margin-top:10px"></div>
+    <div class="sub" style="font-size:.78rem;margin:8px 0 0">Dhyan rakho: PIN bhuli jao to app khuli nahi shake. Tyare browser data clear karvo padse, jena thi aa phone ni saved files jati rahe. Sync Setting chalu hoy to files cloud ma surakshit rahe.</div>
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button></div>
+</dialog>
+
 <dialog id="dlg-save">
-  <div class="tb">Save As</div>
+  <div class="tb">Save / Rename file</div>
   <div class="bd">
     <label for="fname">File name</label>
     <input id="fname" type="text" autocomplete="off">
@@ -1005,11 +1063,12 @@ function renderFiles(){
     const list=f[n].rows||[];
     li.innerHTML='<div class="nm"><strong>'+esc(n)+'</strong><div class="meta">'+fileMeta(f[n])+'</div></div>'
       +(listMode==='open'
-        ?'<button type="button" class="alt" data-a="open">Open</button>'
+        ?'<div style="display:flex;flex-direction:row;gap:6px;flex:none;align-items:center"><button type="button" class="alt" data-a="open" style="padding:8px 12px;font-size:.9rem">Open</button><button type="button" class="alt" data-a="ren" style="padding:8px 12px;font-size:.9rem">Rename</button></div>'
         :'<button type="button" class="alt" data-a="del" style="color:var(--bad);border-color:var(--bad)">Delete</button>');
     const ob=li.querySelector('[data-a=open]'), db=li.querySelector('[data-a=del]');
     if(ob) ob.onclick=()=>{document.getElementById('dlg-list').close();openFile(n)};
     if(db) db.onclick=()=>delFile(n);
+    const rb=li.querySelector('[data-a=ren]'); if(rb) rb.onclick=()=>showRename(n);
     ul.appendChild(li);
   });
 }
@@ -1019,9 +1078,28 @@ async function saveFile(){
   fname.value=n;
   const f=readFiles();
   if(f[n] && n!==getCurrent() && !(await askConfirm('A file named "'+n+'" already exists. Replace it?','Replace'))) return;
+  const oldName=getCurrent(), existed=!!f[n];
   f[n]=(MODE==='fix')?{rows:[],updated:Date.now(),mode:'fix',fx:fxJson()}:{rows:currentRows().map(normalize),updated:Date.now(),mode:MODE};
+  if(oldName && oldName!==n && !existed && f[oldName] && /^\d{4}-\d{2}-\d{2}( \(\d+\))?$/.test(oldName)){delete f[oldName];addTomb(oldName)}   // auto-named file: rename instead of leaving a copy
   if(writeFiles(f)){setCurrent(n);fmsg.textContent='Saved "'+n+'".';renderFiles();document.getElementById('dlg-save').close();fbSync();}
 }
+let renameFrom='';
+function showRename(n){renameFrom=n;document.getElementById('rn-name').value=n;document.getElementById('rn-msg').textContent='';document.getElementById('dlg-rename').showModal();document.getElementById('rn-name').select()}
+function doRename(){
+  const inp=document.getElementById('rn-name'), msg=document.getElementById('rn-msg'), nn=inp.value.trim();
+  if(!nn){msg.textContent='Naam lakho.';return}
+  if(nn===renameFrom){document.getElementById('dlg-rename').close();return}
+  const f=readFiles(); if(!f[renameFrom]){document.getElementById('dlg-rename').close();return}
+  if(f[nn]){msg.textContent='Aa naam ni file pehla thi che.';return}
+  f[nn]=f[renameFrom]; f[nn].updated=Date.now(); delete f[renameFrom];
+  if(!writeFiles(f)) return;
+  addTomb(renameFrom);
+  if(getCurrent()===renameFrom){setCurrent(nn);fname.value=nn}
+  fmsg.textContent='Renamed to "'+nn+'".';
+  document.getElementById('dlg-rename').close(); renderFiles(); fbSync();
+}
+document.getElementById('rn-go').onclick=doRename;
+document.getElementById('rn-name').addEventListener('keydown',e=>{if(e.key==='Enter')doRename()});
 async function openFile(n){
   const f=readFiles(); if(!f[n]) return;
   if(getCurrent()!==n && isDirty() && !(await askConfirm('Open "'+n+'"? Unsaved changes in the current sheet will be replaced.','Open anyway'))) return;
@@ -1096,7 +1174,7 @@ function showList(mode){
   renderFiles(); document.getElementById('dlg-list').showModal();
 }
 function showSaveAs(){fname.value=getCurrent()||today();document.getElementById('dlg-save').showModal();fname.select()}
-function doSave(){ if(getCurrent()){fname.value=getCurrent();saveFile()} else showSaveAs() }
+function doSave(){ showSaveAs() }
 document.getElementById('mi-new').onclick=()=>{closeMenus();newFile()};
 document.getElementById('mi-open').onclick=()=>{closeMenus();showList('open')};
 document.getElementById('mi-save').onclick=()=>{closeMenus();doSave()};
@@ -1969,6 +2047,131 @@ setTimeout(go,1800);})();
     $(p[0]).addEventListener('input',function(){ST[p[1]]=this.value;persist()})});
   $('mi-merge').onclick=function(){closeMenus();loadHead();renderRanges();mfRenderFiles();$('dlg-merge').showModal()};
   renderRanges();mfRenderFiles();
+})();
+</script>
+<script>
+// ---------- App lock: PIN + fingerprint ----------
+(function(){
+  var KEY='logcft_lock_v1';
+  function $(id){return document.getElementById(id)}
+  function cfg(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}}
+  function put(c){try{if(c)localStorage.setItem(KEY,JSON.stringify(c));else localStorage.removeItem(KEY)}catch(e){}}
+  function hex(buf){return Array.prototype.map.call(new Uint8Array(buf),function(b){return ('0'+b.toString(16)).slice(-2)}).join('')}
+  function rnd(n){var a=new Uint8Array(n);(window.crypto||{getRandomValues:function(x){for(var i=0;i<x.length;i++)x[i]=Math.floor(Math.random()*256)}}).getRandomValues(a);return a}
+  function b64(buf){var s='',a=new Uint8Array(buf);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s)}
+  function unb64(t){var s=atob(t),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
+  async function hashPin(pin,salt){
+    if(window.crypto&&crypto.subtle){
+      var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveBits']);
+      var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:new TextEncoder().encode(salt),iterations:100000},km,256);
+      return 'p'+hex(bits);
+    }
+    var h=5381,t=salt+':'+pin;for(var i=0;i<t.length;i++){h=((h<<5)+h+t.charCodeAt(i))|0}
+    return 'f'+(h>>>0).toString(16);
+  }
+  function fpSupported(){return !!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.create)}
+  async function fpAvailable(){
+    if(!fpSupported())return false;
+    try{if(PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable)return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()}catch(e){}
+    return false;
+  }
+  async function fpRegister(){
+    var cred=await navigator.credentials.create({publicKey:{
+      challenge:rnd(32),rp:{name:'Log CFT/CBM Calculator'},
+      user:{id:rnd(16),name:'owner',displayName:'Owner'},
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},
+      timeout:60000,attestation:'none'}});
+    return b64(cred.rawId);
+  }
+  async function fpCheck(id){
+    var r=await navigator.credentials.get({publicKey:{challenge:rnd(32),
+      allowCredentials:[{type:'public-key',id:unb64(id)}],userVerification:'required',timeout:60000}});
+    return !!r;
+  }
+
+  // ----- lock screen -----
+  var fails=0,until=0;
+  function unlock(){document.documentElement.classList.remove('locked');$('lk-pin').value='';$('lk-msg').textContent=''}
+  function lock(){
+    var c=cfg();if(!c||!c.hash)return;
+    document.documentElement.classList.add('locked');
+    $('lk-pin').value='';$('lk-msg').textContent='';$('lk-fp').hidden=!c.fp;
+    try{closeMenus()}catch(e){}
+    document.querySelectorAll('dialog[open]').forEach(function(d){try{d.close()}catch(e){}});
+    setTimeout(function(){try{$('lk-pin').focus()}catch(e){}},50);
+  }
+  async function tryPin(auto){
+    var c=cfg();if(!c||!c.hash){unlock();return}
+    var v=$('lk-pin').value;
+    if(Date.now()<until){$('lk-msg').textContent='Ghani var khotu. '+Math.ceil((until-Date.now())/1000)+' sec pachhi try karo.';return}
+    if(auto&&v.length<(c.len||4))return;
+    if(v.length<4){$('lk-msg').textContent='PIN lakho.';return}
+    var h=await hashPin(v,c.salt);
+    if(h===c.hash){fails=0;unlock();return}
+    if(auto&&v.length<6&&v.length<(c.len||4))return;
+    fails++;$('lk-pin').value='';
+    if(fails>=5){until=Date.now()+30000;fails=0;$('lk-msg').textContent='5 var khotu PIN. 30 sec pachhi try karo.'}
+    else $('lk-msg').textContent='Khotu PIN. Farithi try karo.';
+  }
+  async function tryFp(){
+    var c=cfg();if(!c||!c.fp)return;
+    try{if(await fpCheck(c.fp)){fails=0;unlock()}else $('lk-msg').textContent='Fingerprint match na thayu.'}
+    catch(e){$('lk-msg').textContent='Fingerprint chalyu nahi. PIN vapro.'}
+  }
+  $('lk-go').onclick=function(){tryPin(false)};
+  $('lk-pin').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'');tryPin(true)});
+  $('lk-pin').addEventListener('keydown',function(e){if(e.key==='Enter')tryPin(false)});
+  $('lk-fp').onclick=tryFp;
+  $('lk-forgot').onclick=function(){$('lk-msg').style.color='var(--ink)';$('lk-msg').textContent='PIN bhuli gaya to browser/app data clear karvo padse (saved files jati rahe, Sync chalu hoy to cloud ma rahe).'};
+  // lock again after the app was in the background for a while
+  var hiddenAt=0;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){hiddenAt=Date.now()}
+    else if(hiddenAt&&Date.now()-hiddenAt>30000){lock();var c=cfg();if(c&&c.fp)setTimeout(tryFp,300)}
+  });
+  var c0=cfg();
+  if(c0&&c0.hash){$('lk-fp').hidden=!c0.fp;if(c0.fp)setTimeout(tryFp,900);setTimeout(function(){try{$('lk-pin').focus()}catch(e){}},300)}
+
+  // ----- settings dialog -----
+  function msg(t,bad){var m=$('lc-msg');m.textContent=t;m.style.color=bad?'var(--bad)':'var(--dark)'}
+  async function render(){
+    var c=cfg(),has=!!(c&&c.hash);
+    $('lc-status').textContent=has?'PIN lock chalu che':'PIN lock band che';
+    $('lc-curwrap').hidden=!has;$('lc-remove').hidden=!has;
+    $('lc-newl').textContent=has?'New PIN (4 thi 6 ank)':'PIN (4 thi 6 ank)';
+    $('lc-save').textContent=has?'Change PIN':'Save PIN';
+    ['lc-cur','lc-new','lc-new2'].forEach(function(i){$(i).value=''});
+    var w=$('lc-fpwrap');w.hidden=!has;
+    if(has){
+      var ok=await fpAvailable();
+      $('lc-fpbtn').disabled=!ok&&!c.fp;
+      $('lc-fpstat').textContent=c.fp?'Fingerprint chalu che.':(ok?'Fingerprint thi pan unlock kari shako.':'Aa device/browser ma fingerprint chalshe nahi (https page ane phone ma fingerprint set hovu joiye). PIN thi unlock thase.');
+      $('lc-fpbtn').textContent=c.fp?'Disable fingerprint':'Enable fingerprint';
+    }
+  }
+  async function verifyCur(c){return (await hashPin($('lc-cur').value,c.salt))===c.hash}
+  $('mi-lock').onclick=function(){closeMenus();msg('');render();$('dlg-lock').showModal()};
+  $('lc-save').onclick=async function(){
+    var c=cfg(),has=!!(c&&c.hash),p=$('lc-new').value,p2=$('lc-new2').value;
+    if(has&&!(await verifyCur(c))){msg('Current PIN khotu che.',true);return}
+    if(!/^\d{4,6}$/.test(p)){msg('PIN 4 thi 6 ank no hovo joiye.',true);return}
+    if(p!==p2){msg('Banne PIN sarkha nathi.',true);return}
+    var salt=hex(rnd(16));
+    put({salt:salt,hash:await hashPin(p,salt),len:p.length,fp:has?c.fp:null});
+    await render();msg(has?'PIN badlai gayo.':'PIN set thai gayo. Have app khulse tyare PIN puchhase.');
+  };
+  $('lc-remove').onclick=async function(){
+    var c=cfg();if(!c)return;
+    if(!(await verifyCur(c))){msg('Current PIN khotu che.',true);return}
+    put(null);document.documentElement.classList.remove('locked');await render();msg('PIN lock kadhi nakhyu.');
+  };
+  $('lc-fpbtn').onclick=async function(){
+    var c=cfg();if(!c)return;
+    if(c.fp){c.fp=null;put(c);await render();msg('Fingerprint band karyu.');return}
+    try{c.fp=await fpRegister();put(c);await render();msg('Fingerprint chalu thayu.')}
+    catch(e){msg('Fingerprint chalu na thayu ('+(e&&e.name||'error')+'). Phone ma fingerprint set chhe ane page https par chhe te check karo.',true)}
+  };
 })();
 </script>
 </body>
