@@ -323,6 +323,12 @@ html.locked body{overflow:hidden}
     <small id="lk-forgot">PIN bhuli gaya?</small>
   </div>
 </div>
+<div id="blockscr" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:10002;background:#1c2a24;color:#fff;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:'Segoe UI',Arial,sans-serif">
+  <div style="max-width:340px"><div style="font-size:2.4rem;margin-bottom:8px">&#9940;</div>
+  <h2 style="margin:0 0 8px">Access blocked</h2>
+  <p style="margin:0 0 12px;opacity:.9">This device has been blocked by the developer. Please contact the developer.</p>
+  <p style="margin:0;font-size:.85rem;opacity:.8">Email: greencheckinc@gmail.com<br>Device ID: <strong id="blk-id"></strong></p></div>
+</div>
 <div id="splash" aria-hidden="true">
   <svg class="splogo" viewBox="0 0 512 512" aria-hidden="true">
     <defs><linearGradient id="lgbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--wood)"/><stop offset="1" style="stop-color:var(--dark)"/></linearGradient></defs>
@@ -400,8 +406,13 @@ html.locked body{overflow:hidden}
     <label for="actkey">Enter or paste activation key</label>
     <input id="actkey" type="password" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
     <div id="act-msg" role="status" style="margin-top:8px;min-height:1.2em"></div>
+    <div id="req-box" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <label for="req-name">Do not have a key? Send an activation request</label>
+      <input id="req-name" type="text" autocomplete="off" maxlength="60" placeholder="Your name / company name" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
+      <div id="req-msg" role="status" style="margin-top:6px;min-height:1.2em;font-size:.9rem"></div>
+    </div>
   </div>
-  <div class="ft"><button type="button" class="alt" data-close>Close</button><button type="button" id="act-go">Activate</button></div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button><button type="button" class="alt" id="req-go">Request activation</button><button type="button" id="act-go">Activate</button></div>
 </dialog>
 
 <dialog id="dlg-fb">
@@ -1224,7 +1235,7 @@ fname.addEventListener('keydown',e=>{if(e.key==='Enter')saveFile()});
 
 // ---------- Auto-save: every change is saved as a file here, and pushed to Firebase when sync is on ----------
 var autoT=null, pushT=null;
-function activeOk(){ try{ return ACTIVE||TRIAL_LEFT>0 }catch(e){ return true } }
+function activeOk(){ try{ return !BLOCKED&&(ACTIVE||TRIAL_LEFT>0) }catch(e){ return true } }
 function uniqueName(base){
   const f=readFiles(); if(!f[base]) return base;
   let i=2; while(f[base+' ('+i+')']) i++; return base+' ('+i+')';
@@ -1778,6 +1789,7 @@ setInterval(fbSync,60000);
 // Only a salted PBKDF2 hash is stored here; the key itself is not in this file.
 const ACT_SALT="74fdda1040218ce32e53d68014c5fc41", ACT_HASH="00c4be6201526371acba2c9844623aa5fa071c19c2712441611a848b150a444a", ACT_ITER=200000, ACTSTORE='logcft_act_v1';
 let ACTIVE=false, ACT_INFO='', LIC_ERR='';
+let BLOCKED=false; try{BLOCKED=localStorage.getItem('logcft_blocked_v1')==='1'}catch(e){}
 // Personal (per-user) keys are signed by the developer; only the public key is stored here.
 const LIC_PUB={"kty":"EC","crv":"P-256","x":"KO0hoFy2hhg5OxqWfCJnpqze-WE4KRaMU5pyOE9BmsU","y":"RDb4Wd2eL1d9RcTYgphoKVUz-jOr2DGZwQHWI2LqOaY"}, LICSTORE='logcft_lic_v1', DEVSTORE='logcft_dev_v1';
 function b64uToBytes(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const b=atob(t),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
@@ -1837,6 +1849,7 @@ function refreshAct(){
   document.getElementById('act-state').textContent=ACTIVE?('This copy is activated'+(ACT_INFO?': '+ACT_INFO:'')+'.'):(LIC_ERR?LIC_ERR+' ':'')+(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
 }
 function requireActive(){
+  if(BLOCKED) return false;
   refreshAct();
   if(ACTIVE||TRIAL_LEFT>0) return true;
   fmsg.textContent='Activation required. Open Settings > Activation key.';
@@ -1873,7 +1886,7 @@ document.getElementById('mi-act').onclick=()=>{closeMenus();document.getElementB
 document.getElementById('mi-about').onclick=()=>{closeMenus();refreshAct();document.getElementById('dlg-about').showModal()};
 refreshAct();
 function lockIfExpired(){
-  if(ACTIVE) return; refreshAct(); if(TRIAL_LEFT>0) return;
+  if(ACTIVE||BLOCKED) return; refreshAct(); if(TRIAL_LEFT>0) return;
   const d=document.getElementById('dlg-act'); if(!d.open){document.getElementById('act-msg').textContent='';d.showModal()}
 }
 document.getElementById('dlg-act').addEventListener('cancel',e=>{if(!ACTIVE&&TRIAL_LEFT<=0)e.preventDefault()});
@@ -2319,6 +2332,80 @@ setTimeout(go,1800);})();
     try{c.fp=await fpRegister();put(c);await render();msg('Fingerprint chalu thayu.')}
     catch(e){msg('Fingerprint chalu na thayu ('+(e&&e.name||'error')+'). Phone ma fingerprint set chhe ane page https par chhe te check karo.',true)}
   };
+})();
+</script>
+<script>
+// ---------- Device registry (Firebase Realtime Database, REST) ----------
+// Each install silently reports only its random Device ID + status to /devices/<ID>.
+// The admin sees it live in key-generator.html, and can send the key back to the device.
+(function(){
+  var DB='https://log-cft-cbm-key-generator-default-rtdb.firebaseio.com';   // <-- must match your Realtime Database URL
+  var FIRSTKEY='logcft_reg_first_v1', REQKEY='logcft_reg_req_v1', VER='1.0';
+  function $(id){return document.getElementById(id)}
+  function node(){return DB+'/devices/'+encodeURIComponent(getDeviceId())+'.json'}
+  function firstSeen(){
+    var v=0;try{v=parseInt(localStorage.getItem(FIRSTKEY),10)}catch(e){}
+    if(!v){v=Date.now();try{localStorage.setItem(FIRSTKEY,String(v))}catch(e){}}
+    return v;
+  }
+  function patch(o){
+    return fetch(node(),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r});
+  }
+  function applyBlocked(b){
+    var was=BLOCKED; BLOCKED=!!b; try{localStorage.setItem('logcft_blocked_v1',BLOCKED?'1':'0')}catch(e){}
+    var s=$('blockscr'); if(!s) return;
+    $('blk-id').textContent=getDeviceId();
+    s.style.display=BLOCKED?'flex':'none';
+    if(BLOCKED){ try{closeMenus()}catch(e){} document.querySelectorAll('dialog[open]').forEach(function(d){try{d.close()}catch(e){}}); }
+    else if(was){ try{lockIfExpired()}catch(e){} }
+  }
+  applyBlocked(BLOCKED);
+  function report(extra){
+    try{
+      refreshAct();
+      var ts=rd(T_START), tstart=ts.length?Math.min.apply(null,ts):null;
+      var o={id:getDeviceId(),lastSeen:Date.now(),firstSeen:firstSeen(),active:!!ACTIVE,
+        trialStart:tstart,trialEnd:tstart?tstart+TRIAL_DAYS*DAY:null,
+        trialLeft:ACTIVE?null:TRIAL_LEFT,user:ACTIVE?(ACT_INFO||''):null,ver:VER};
+      if(extra) for(var k in extra) o[k]=extra[k];
+      return patch(o).catch(function(){});
+    }catch(e){return Promise.resolve()}
+  }
+  // If the admin has sent a key for this device, activate automatically.
+  async function checkKey(){
+    try{
+      var r=await fetch(node()); if(!r.ok) return;
+      var j=await r.json();
+      applyBlocked(!!(j&&j.blocked));          // admin can block / unblock this device
+      if(ACTIVE||!j||!j.key||BLOCKED) return;
+      var v=await verifyLicense(j.key); if(!v.ok) return;
+      ACTIVE=true; ACT_INFO=v.info; LIC_ERR='';
+      try{localStorage.setItem(LICSTORE,String(j.key).replace(/\s+/g,''))}catch(e){}
+      refreshAct(); report({requested:false});
+      var d=$('dlg-act'); if(d&&d.open){$('act-msg').innerHTML='<span style="color:var(--ok)">Activated successfully.</span>';setTimeout(function(){d.close()},700)}
+    }catch(e){}
+  }
+  async function sendRequest(){
+    var m=$('req-msg'), nm=$('req-name').value.trim();
+    if(!nm){m.innerHTML='<span class="err">Enter your name / company name.</span>';return}
+    if(ACTIVE){m.textContent='This copy is already activated.';return}
+    m.textContent='Sending...';
+    try{
+      await patch({id:getDeviceId(),name:nm,requested:true,requestTs:Date.now(),lastSeen:Date.now(),firstSeen:firstSeen(),active:false,trialLeft:TRIAL_LEFT,ver:VER});
+      try{localStorage.setItem(REQKEY,nm)}catch(e){}
+      m.innerHTML='<span style="color:var(--ok)">Request sent. The key will be activated here automatically once the developer approves it.</span>';
+    }catch(e){m.innerHTML='<span class="err">Could not send the request. Check your internet and try again.</span>'}
+  }
+  $('req-go').onclick=sendRequest;
+  $('mi-act').addEventListener('click',function(){
+    try{var n=localStorage.getItem(REQKEY); if(n&&!$('req-name').value) $('req-name').value=n}catch(e){}
+    $('req-box').hidden=!!ACTIVE; $('req-go').hidden=!!ACTIVE; checkKey();
+  });
+  // report on start, when the app comes to the front, and every 5 minutes
+  setTimeout(function(){report().then(checkKey)},800);
+  setInterval(function(){if(BLOCKED) checkKey()},30000);   // a blocked device re-checks quickly so an unblock takes effect soon
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){report().then(checkKey)}});
+  setInterval(function(){report().then(checkKey)},300000);
 })();
 </script>
 </body>
