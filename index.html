@@ -99,6 +99,7 @@ dialog .tb{background:#e9e4d8;padding:8px 12px;font-weight:600;border-bottom:1px
 dialog .bd{padding:12px}
 dialog .ft{display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid var(--line)}
 .statusbar{font:12px "Segoe UI",Arial,sans-serif;color:#555;margin:0 0 8px}
+#fmsg:not(:empty)::before{content:" | ";white-space:pre}
 tr.bad td:nth-child(2) input{border:2px solid var(--bad);background:#fde8e6;color:var(--bad);font-weight:700}
 tr.bad td.cft,tr.bad td.idx{font-weight:700;color:var(--bad)}
 .bar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -393,8 +394,8 @@ html.locked body{overflow:hidden}
   </div>
 </nav>
 
+<div class="statusbar" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:10px 0 10px"><span style="flex:1;min-width:0;overflow-wrap:anywhere">File: <strong id="curname"></strong><span id="fmsg" role="status"></span></span><button type="button" class="alt" id="sb-save" style="flex:none;padding:4px 18px;font-size:.85rem;min-height:0;margin:0">Save</button></div>
 <div class="seg" role="group" aria-label="Sheet type"><button type="button" id="mode-sawn" aria-pressed="true">Sawn timber<small>Size &rarr; CFT</small></button><button type="button" id="mode-round" aria-pressed="false">Round log<small>Length &times; Girth &rarr; CBM</small></button><button type="button" id="mode-fix" aria-pressed="false">Fixed size<small>Length &times; Pcs &rarr; CFT</small></button></div>
-<div class="statusbar">File: <strong id="curname"></strong> &nbsp;|&nbsp; <span id="fmsg" role="status"></span> &nbsp;|&nbsp; <span id="actbadge"></span></div>
 
 <dialog id="dlg-about">
   <div class="tb">Settings: App info</div>
@@ -1347,6 +1348,7 @@ function doSave(){ showSaveAs() }
 document.getElementById('mi-new').onclick=()=>{closeMenus();newFile()};
 document.getElementById('mi-open').onclick=()=>{closeMenus();showList('open')};
 document.getElementById('mi-save').onclick=()=>{closeMenus();doSave()};
+document.getElementById('sb-save').onclick=e=>{e.stopPropagation();doSave()};
 document.getElementById('mi-saveas').onclick=()=>{closeMenus();showSaveAs()};
 document.getElementById('mi-delete').onclick=()=>{closeMenus();showList('delete')};
 document.getElementById('mi-api').onclick=()=>{closeMenus();document.getElementById('dlg-api').showModal()};
@@ -1907,7 +1909,7 @@ function refreshAct(){
   TRIAL_LEFT=trialDaysLeft();
   const di=document.getElementById('act-dev'); if(di) di.textContent=getDeviceId();
   const t=ACTIVE?'Activated':(TRIAL_LEFT>0?'Trial: '+TRIAL_LEFT+' day'+(TRIAL_LEFT===1?'':'s')+' left':'Trial expired - activation required');
-  document.getElementById('actbadge').textContent=t;
+  const ab=document.getElementById('actbadge'); if(ab) ab.textContent=t;
   document.getElementById('act-state').textContent=ACTIVE?('This copy is activated'+(ACT_INFO?': '+ACT_INFO:'')+'.'):(LIC_ERR?LIC_ERR+' ':'')+(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
   updateDaysBadge();
 }
