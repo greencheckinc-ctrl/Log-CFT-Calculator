@@ -165,7 +165,10 @@ body.round .th2,body.round .cft2{display:table-cell}
 .apphead .logo{width:56px;height:56px;flex:none;display:block;overflow:hidden;border-radius:14px;border:2px solid rgba(255,255,255,.6)}
 .apphead .ttl{flex:1;min-width:0;text-align:left;line-height:1.15}
 .apphead h1{margin:0;color:#fff;font-size:1.45rem;font-weight:700;letter-spacing:-.01em}
-.apphead .by{color:rgba(255,255,255,.9);font-size:.78rem;font-weight:500;margin-top:3px}
+.apphead .by{color:rgba(255,255,255,.9);font-size:.78rem;font-weight:500;margin-top:3px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px}
+.apphead .dbadge{display:none;margin:0 0 0 auto;padding:2px 10px;min-height:0;width:auto;border-radius:999px;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.2);color:#fff;font:inherit;font-size:.72rem;font-weight:700;line-height:1.5;white-space:nowrap;cursor:pointer;box-shadow:none}
+.apphead .dbadge.warn{background:#d97706;border-color:#fff}
+.apphead .dbadge.crit{background:#b3261e;border-color:#fff}
 .menubar{background:var(--wood);box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .appfoot{text-align:center;color:var(--muted);font-size:.78rem;padding:10px 0 12px}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
@@ -315,12 +318,17 @@ html.locked body{overflow:hidden}
 <div id="lockscr" role="dialog" aria-modal="true" aria-label="App lock">
   <div class="lkbox">
     <h2>Log CFT/CBM Calculator</h2>
-    <p id="lk-sub">PIN lakho</p>
+    <p id="lk-sub">Enter your PIN</p>
     <input id="lk-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" aria-label="PIN">
     <div id="lk-msg" role="status"></div>
     <button type="button" id="lk-go">Unlock</button>
     <button type="button" id="lk-fp" class="alt" hidden>Use fingerprint</button>
-    <small id="lk-forgot">PIN bhuli gaya?</small>
+    <small id="lk-forgot">Forgot your PIN?</small>
+    <div id="lk-reset" style="display:none;margin-top:12px;text-align:left">
+      <label for="lk-code" style="font-size:.8rem;font-weight:700;color:var(--muted)">Unlock code or Activation key</label>
+      <input id="lk-code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Unlock code / Activation key" style="font-size:1rem;letter-spacing:normal;min-height:46px;text-align:left;margin-top:4px">
+      <button type="button" id="lk-rgo" class="alt">Reset PIN</button>
+    </div>
   </div>
 </div>
 <div id="blockscr" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;z-index:10002;background:#1c2a24;color:#fff;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:'Segoe UI',Arial,sans-serif">
@@ -354,7 +362,7 @@ html.locked body{overflow:hidden}
     <rect x="124" y="388" width="264" height="54" rx="10" style="fill:var(--soft)"/>
     <g style="stroke:var(--dark)" stroke-width="5" stroke-linecap="round"><line x1="148" y1="388" x2="148" y2="420"/><line x1="181" y1="388" x2="181" y2="408"/><line x1="214" y1="388" x2="214" y2="420"/><line x1="247" y1="388" x2="247" y2="408"/><line x1="280" y1="388" x2="280" y2="420"/><line x1="313" y1="388" x2="313" y2="408"/><line x1="346" y1="388" x2="346" y2="420"/><line x1="379" y1="388" x2="379" y2="408"/></g>
   </svg>
-  <div class="ttl"><h1>Log CFT/CBM Calculator</h1><div class="by">Developed by GreenCheck inc.</div></div>
+  <div class="ttl"><h1>Log CFT/CBM Calculator</h1><div class="by"><span>Developed by GreenCheck inc.</span><button type="button" id="daysbadge" class="dbadge" aria-label="Days left - open activation"></button></div></div>
 </header>
 <nav class="menubar" aria-label="Main menu">
   <div class="menu">
@@ -377,7 +385,9 @@ html.locked body{overflow:hidden}
       <button type="button" role="menuitem" id="mi-theme">Theme colour...</button>
       <button type="button" role="menuitem" id="mi-lock">App lock (PIN / Fingerprint)...</button>
       <button type="button" role="menuitem" id="mi-api">API key...</button>
+      <button type="button" role="menuitem" id="mi-bk">Backup / Restore...</button>
       <button type="button" role="menuitem" id="mi-fb">Sync Setting...</button>
+      <button type="button" role="menuitem" id="mi-email">My email...</button>
       <button type="button" role="menuitem" id="mi-act">Activation key...</button>
     </div>
   </div>
@@ -407,12 +417,58 @@ html.locked body{overflow:hidden}
     <input id="actkey" type="password" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
     <div id="act-msg" role="status" style="margin-top:8px;min-height:1.2em"></div>
     <div id="req-box" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-      <label for="req-name">Do not have a key? Send an activation request</label>
+      <label for="req-email">Do not have a key? Send an activation request</label>
+      <input id="req-email" type="email" inputmode="email" autocomplete="email" maxlength="80" placeholder="Your email" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff;margin-bottom:6px">
       <input id="req-name" type="text" autocomplete="off" maxlength="60" placeholder="Your name / company name" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:4px;background:#fff">
       <div id="req-msg" role="status" style="margin-top:6px;min-height:1.2em;font-size:.9rem"></div>
     </div>
   </div>
   <div class="ft"><button type="button" class="alt" data-close>Close</button><button type="button" class="alt" id="req-go">Request activation</button><button type="button" id="act-go">Activate</button></div>
+</dialog>
+
+<dialog id="dlg-bk">
+  <div class="tb">Backup / Restore</div>
+  <div class="bd">
+    <p style="margin:0 0 8px;font-size:.88rem">All your saved files and settings are packed into one backup file. If browser data is cleared, restore from it.</p>
+    <div id="bk-status" style="font-size:.85rem;margin-bottom:10px"></div>
+    <label style="font-weight:600">Automatic backup</label>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 10px">
+      <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="radio" name="bk-s" value="manual"> Manual only</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="radio" name="bk-s" value="daily"> Daily</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="radio" name="bk-s" value="weekly"> Weekly</label>
+    </div>
+    <div id="bk-folder-box" style="margin-bottom:10px">
+      <button type="button" class="alt" id="bk-pick">Choose backup folder</button>
+      <div id="bk-folder" style="font-size:.8rem;margin-top:4px"></div>
+    </div>
+    <div id="bk-nofolder" style="font-size:.8rem;margin-bottom:10px;display:none">This browser cannot save into a chosen folder, so backups are saved to your phone's <b>Downloads</b> folder as <b>LogCFT-CBM-backup-date.json</b>. You can move them into a folder named <b>Log CFT-CBM Backup</b>.</div>
+    <button type="button" id="bk-now">Backup now</button>
+    <hr style="margin:14px 0 10px">
+    <label style="font-weight:600">Restore</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <button type="button" class="alt" id="bk-rfolder">Restore latest from folder</button>
+      <button type="button" class="alt" id="bk-rfile">Restore from backup file...</button>
+    </div>
+    <input type="file" id="bk-file" accept=".json,application/json" style="display:none">
+    <div id="bk-msg" role="status" style="min-height:1.2em;margin-top:10px;font-size:.88rem"></div>
+  </div>
+  <div class="ft"><button type="button" class="alt" data-close>Close</button></div>
+</dialog>
+<div id="bk-bar" style="display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:9000;background:#1c2a24;color:#fff;border-radius:10px;padding:10px 12px;gap:8px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:.88rem;font-family:'Segoe UI',Arial,sans-serif">
+  <span id="bk-bar-t" style="flex:1">Backup is due.</span>
+  <button type="button" id="bk-bar-go" style="margin:0;padding:6px 12px;min-height:0">Backup now</button>
+  <button type="button" id="bk-bar-x" class="alt" style="margin:0;padding:6px 10px;min-height:0">Later</button>
+</div>
+
+<dialog id="dlg-email">
+  <div class="tb">Your email</div>
+  <div class="bd">
+    <p style="margin:0 0 8px;font-size:.9rem">Enter your email address. Your trial, activation and support are linked to this email.</p>
+    <label for="em-in">Email</label>
+    <input id="em-in" type="email" inputmode="email" autocomplete="email" maxlength="80" placeholder="name@example.com" style="width:100%;box-sizing:border-box;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff">
+    <div id="em-msg" role="status" style="min-height:1.2em;margin-top:8px;font-size:.9rem"></div>
+  </div>
+  <div class="ft"><button type="button" class="alt" id="em-cancel" data-close>Cancel</button><button type="button" id="em-go">Save</button></div>
 </dialog>
 
 <dialog id="dlg-fb">
@@ -464,7 +520,7 @@ html.locked body{overflow:hidden}
   <div class="bd">
     <div id="lc-status" style="font-weight:700;margin-bottom:4px"></div>
     <div id="lc-curwrap"><label for="lc-cur">Current PIN</label><input id="lc-cur" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
-    <label for="lc-new" id="lc-newl">New PIN (4 thi 6 ank)</label><input id="lc-new" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    <label for="lc-new" id="lc-newl">New PIN (4 to 6 digits)</label><input id="lc-new" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
     <label for="lc-new2">Confirm PIN</label><input id="lc-new2" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
     <div class="lrow"><button type="button" id="lc-save">Save PIN</button><button type="button" id="lc-remove" class="alt" style="color:var(--bad);border-color:var(--bad)">Remove PIN</button></div>
     <div id="lc-fpwrap" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
@@ -473,7 +529,7 @@ html.locked body{overflow:hidden}
       <button type="button" id="lc-fpbtn" style="width:100%;min-height:46px">Enable fingerprint</button>
     </div>
     <div id="lc-msg" role="status" style="font-size:.88rem;min-height:1.2em;margin-top:10px"></div>
-    <div class="sub" style="font-size:.78rem;margin:8px 0 0">Dhyan rakho: PIN bhuli jao to app khuli nahi shake. Tyare browser data clear karvo padse, jena thi aa phone ni saved files jati rahe. Sync Setting chalu hoy to files cloud ma surakshit rahe.</div>
+    <div class="sub" style="font-size:.78rem;margin:8px 0 0">Note: if you forget your PIN, you can reset it from the lock screen with your Activation key. Otherwise the browser data must be cleared, which deletes the saved files on this phone. If Sync Setting is on, your files stay safe in the cloud.</div>
   </div>
   <div class="ft"><button type="button" class="alt" data-close>Close</button></div>
 </dialog>
@@ -570,7 +626,7 @@ html.locked body{overflow:hidden}
 <dialog id="dlg-merge">
   <div class="tb">Merge &amp; sort table</div>
   <div class="bd" id="mfbox">
-    <div class="sub" style="font-size:.85rem;margin:0 0 8px">Saved files select karo (Fixed size, Sawn timber, Round log). Same prakar ni badhi size merge thai ne length range na heading under sort thase. Alag prakar ni file alag table ma aavse.</div>
+    <div class="sub" style="font-size:.85rem;margin:0 0 8px">Select the saved files (Fixed size, Sawn timber, Round log). Sizes of the same type are merged and sorted under length range headings. Files of a different type appear in a separate table.</div>
     <label for="mf-title">Company name</label>
     <input id="mf-title" type="text" class="mfin" autocomplete="off" maxlength="60">
     <div class="fx2">
@@ -1200,10 +1256,10 @@ let renameFrom='';
 function showRename(n){renameFrom=n;document.getElementById('rn-name').value=n;document.getElementById('rn-msg').textContent='';document.getElementById('dlg-rename').showModal();document.getElementById('rn-name').select()}
 function doRename(){
   const inp=document.getElementById('rn-name'), msg=document.getElementById('rn-msg'), nn=inp.value.trim();
-  if(!nn){msg.textContent='Naam lakho.';return}
+  if(!nn){msg.textContent='Enter a name.';return}
   if(nn===renameFrom){document.getElementById('dlg-rename').close();return}
   const f=readFiles(); if(!f[renameFrom]){document.getElementById('dlg-rename').close();return}
-  if(f[nn]){msg.textContent='Aa naam ni file pehla thi che.';return}
+  if(f[nn]){msg.textContent='A file with this name already exists.';return}
   f[nn]=f[renameFrom]; f[nn].updated=Date.now(); delete f[renameFrom];
   if(!writeFiles(f)) return;
   addTomb(renameFrom);
@@ -1795,11 +1851,16 @@ const LIC_PUB={"kty":"EC","crv":"P-256","x":"KO0hoFy2hhg5OxqWfCJnpqze-WE4KRaMU5p
 function b64uToBytes(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const b=atob(t),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
 function getDeviceId(){
   let d=''; try{d=localStorage.getItem(DEVSTORE)||''}catch(e){}
+  if(!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(d)){   // storage was cleared but the cookie copy is still there
+    try{const m=document.cookie.match(/(?:^|; )logcft_dev=([A-Z0-9-]+)/); if(m&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(m[1])){d=m[1];try{localStorage.setItem(DEVSTORE,d)}catch(e){}}}catch(e){}
+  }
   if(!/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(d)){
     const a=new Uint8Array(8); (window.crypto||{getRandomValues:x=>x.forEach((_,i)=>x[i]=Math.random()*256)}).getRandomValues(a);
     const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; a.forEach(v=>s+=c[v%32]); d=s.slice(0,4)+'-'+s.slice(4);
     try{localStorage.setItem(DEVSTORE,d)}catch(e){}
+    try{localStorage.setItem('logcft_fppend_v1','1')}catch(e){}   // brand-new ID: try to recover the old one from the server
   }
+  try{document.cookie='logcft_dev='+d+'; max-age=315360000; path=/; SameSite=Lax'}catch(e){}
   return d;
 }
 async function verifyLicense(key){
@@ -1819,6 +1880,7 @@ async function verifyLicense(key){
 }
 // ---- 30-day trial (start date and last-seen time kept in two places; clock rollback = expired) ----
 const TRIAL_DAYS=30, T_START='logcft_t1', T_SEEN='logcft_t2', DAY=86400000;
+let EXTRA_DAYS=0; try{EXTRA_DAYS=parseInt(localStorage.getItem('logcft_extra_v1'),10)||0}catch(e){}   // extra trial days given by the developer
 function rd(k){let a=null,b=null;try{a=parseInt(localStorage.getItem(k),10)}catch(e){}
   try{const m=document.cookie.match(new RegExp('(?:^|; )'+k+'=(\\d+)'));if(m)b=parseInt(m[1],10)}catch(e){}
   return [a,b].filter(x=>Number.isFinite(x))}
@@ -1831,7 +1893,7 @@ function trialDaysLeft(){
   const start=Math.min(...st), lastSeen=seen.length?Math.max(...seen):0;
   if(now<lastSeen-300000) return 0;            // clock turned back
   wr(T_START,start); wr(T_SEEN,Math.max(now,lastSeen));
-  return Math.max(0,Math.ceil((start+TRIAL_DAYS*DAY-now)/DAY));
+  return Math.max(0,Math.ceil((start+(TRIAL_DAYS+EXTRA_DAYS)*DAY-now)/DAY));
 }
 let TRIAL_LEFT=0;
 function hexToBytes(h){const a=new Uint8Array(h.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a}
@@ -1847,7 +1909,26 @@ function refreshAct(){
   const t=ACTIVE?'Activated':(TRIAL_LEFT>0?'Trial: '+TRIAL_LEFT+' day'+(TRIAL_LEFT===1?'':'s')+' left':'Trial expired - activation required');
   document.getElementById('actbadge').textContent=t;
   document.getElementById('act-state').textContent=ACTIVE?('This copy is activated'+(ACT_INFO?': '+ACT_INFO:'')+'.'):(LIC_ERR?LIC_ERR+' ':'')+(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
+  updateDaysBadge();
 }
+// Days-left counter in the header corner (next to "Developed by"): trial days, or licence days if the key has an end date
+function updateDaysBadge(){
+  const b=document.getElementById('daysbadge'); if(!b) return;
+  if(BLOCKED){b.style.display='none';return}
+  let txt='',cls='';
+  const dl=n=>n+' day'+(n===1?'':'s')+' left';
+  if(ACTIVE){
+    const m=/valid till (\d{4}-\d{2}-\d{2})/.exec(ACT_INFO||'');
+    if(m){const n=Math.max(0,Math.ceil((Date.parse(m[1]+'T23:59:59')-Date.now())/DAY)); txt='License: '+dl(n); cls=n<=3?'crit':(n<=15?'warn':'')}
+    else txt='✓ Activated';
+  }else{
+    const n=TRIAL_LEFT; txt=n>0?'Trial: '+dl(n):'Trial ended - activate'; cls=n<=3?'crit':(n<=7?'warn':'');
+  }
+  b.textContent=txt; b.className='dbadge'+(cls?' '+cls:''); b.style.display='inline-block';
+}
+document.getElementById('daysbadge').onclick=()=>{const a=document.getElementById('mi-act'); if(a) a.click()};
+setInterval(()=>{try{refreshAct()}catch(e){}},600000);                      // keeps the count right across midnight
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{refreshAct()}catch(e){}}});
 function requireActive(){
   if(BLOCKED) return false;
   refreshAct();
@@ -2108,9 +2189,9 @@ setTimeout(go,1800);})();
         +(rg.length?rg.map(function(r,i){
           return '<div class="mfr"><input type="text" inputmode="decimal" autocomplete="off" data-kind="'+k+'" data-i="'+i+'" data-k="f" value="'+E(r.f)+'" placeholder="From" aria-label="From length">'
             +'<input type="text" inputmode="decimal" autocomplete="off" data-kind="'+k+'" data-i="'+i+'" data-k="t" value="'+E(r.t)+'" placeholder="To (khali = upper)" aria-label="To length">'
-            +'<button type="button" data-kind="'+k+'" data-x="'+i+'" aria-label="Remove range">x</button></div>'}).join(''):'<div class="sub" style="font-size:.85rem;margin-bottom:6px">Koi range nathi, badhi size ek j list ma dekhase.</div>')
+            +'<button type="button" data-kind="'+k+'" data-x="'+i+'" aria-label="Remove range">x</button></div>'}).join(''):'<div class="sub" style="font-size:.85rem;margin-bottom:6px">No range set. All sizes will appear in one list.</div>')
         +'<div class="mgrow"><button type="button" class="alt" data-add="'+k+'">+ Range</button><button type="button" class="alt" data-reset="'+k+'">Reset ranges</button></div>';
-    }).join(''):'<div class="sub" style="font-size:.85rem">Pehla file select karo.</div>';
+    }).join(''):'<div class="sub" style="font-size:.85rem">Select a file first.</div>';
   }
   function renderTable(){
     var list=items(),present=kindsOf(list),html='',tot='';
@@ -2187,7 +2268,7 @@ setTimeout(go,1800);})();
     return h;
   }
   $('mf-print').onclick=function(){
-    if(!hasData()){$('mf-msg').textContent='Pehla file select karo.';return}
+    if(!hasData()){$('mf-msg').textContent='Select a file first.';return}
     if(!requireActive())return;
     $('sheet').innerHTML=printHtml();
     var wa=$('pv-wa'),dlg=$('dlg-preview');
@@ -2264,26 +2345,68 @@ setTimeout(go,1800);})();
   async function tryPin(auto){
     var c=cfg();if(!c||!c.hash){unlock();return}
     var v=$('lk-pin').value;
-    if(Date.now()<until){$('lk-msg').textContent='Ghani var khotu. '+Math.ceil((until-Date.now())/1000)+' sec pachhi try karo.';return}
+    if(Date.now()<until){$('lk-msg').textContent='Too many wrong attempts. Try again in '+Math.ceil((until-Date.now())/1000)+' sec.';return}
     if(auto&&v.length<(c.len||4))return;
-    if(v.length<4){$('lk-msg').textContent='PIN lakho.';return}
+    if(v.length<4){$('lk-msg').textContent='Enter your PIN.';return}
     var h=await hashPin(v,c.salt);
     if(h===c.hash){fails=0;unlock();return}
     if(auto&&v.length<6&&v.length<(c.len||4))return;
     fails++;$('lk-pin').value='';
-    if(fails>=5){until=Date.now()+30000;fails=0;$('lk-msg').textContent='5 var khotu PIN. 30 sec pachhi try karo.'}
-    else $('lk-msg').textContent='Khotu PIN. Farithi try karo.';
+    if(fails>=5){until=Date.now()+30000;fails=0;$('lk-msg').textContent='5 wrong PIN attempts. Try again in 30 sec.'}
+    else $('lk-msg').textContent='Wrong PIN. Try again.';
   }
   async function tryFp(){
     var c=cfg();if(!c||!c.fp)return;
-    try{if(await fpCheck(c.fp)){fails=0;unlock()}else $('lk-msg').textContent='Fingerprint match na thayu.'}
-    catch(e){$('lk-msg').textContent='Fingerprint chalyu nahi. PIN vapro.'}
+    try{if(await fpCheck(c.fp)){fails=0;unlock()}else $('lk-msg').textContent='Fingerprint did not match.'}
+    catch(e){$('lk-msg').textContent='Fingerprint failed. Use your PIN.'}
   }
   $('lk-go').onclick=function(){tryPin(false)};
   $('lk-pin').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'');tryPin(true)});
   $('lk-pin').addEventListener('keydown',function(e){if(e.key==='Enter')tryPin(false)});
   $('lk-fp').onclick=tryFp;
-  $('lk-forgot').onclick=function(){$('lk-msg').style.color='var(--ink)';$('lk-msg').textContent='PIN bhuli gaya to browser/app data clear karvo padse (saved files jati rahe, Sync chalu hoy to cloud ma rahe).'};
+  $('lk-forgot').onclick=function(){
+    var id='';try{id=getDeviceId()}catch(e){}
+    $('lk-msg').style.color='var(--ink)';
+    $('lk-msg').innerHTML='To reset your PIN, enter your <b>Activation key</b> (or the Unlock code) below. If you do not have a key, send this Device ID to the developer: <b>'+id+'</b> (greencheckinc@gmail.com). Saved files are not deleted.';
+    try{window.__logcftWaitReset&&window.__logcftWaitReset()}catch(e){}
+    $('lk-reset').style.display='block';
+  };
+  // Unlock code (stored only as a salted PBKDF2 hash, the code itself is not in this file)
+  var RS_SALT="62393967b270e3453704b41e547df755", RS_HASH="f0ef89e95859b75e6c288bc2a8b16c1022544b22f9923e6616c05b9c9cb78787", rfails=0, runtil=0;
+  async function tryReset(){
+    var m=$('lk-msg'),code=$('lk-code').value.trim();
+    if(Date.now()<runtil){m.style.color='var(--bad)';m.textContent='Too many wrong attempts. Try again in '+Math.ceil((runtil-Date.now())/1000)+' sec.';return}
+    if(!code){m.style.color='var(--bad)';m.textContent='Enter the Unlock code or Activation key.';return}
+    if(!(window.crypto&&crypto.subtle)){m.style.color='var(--bad)';m.textContent='Secure browser context required.';return}
+    var ok=false;
+    if(/^GC1\./i.test(code)){
+      // the customer's own activation key (must be the key activated on this phone and still valid)
+      try{
+        var st=(localStorage.getItem(LICSTORE)||'').replace(/\s+/g,''), cc=code.replace(/\s+/g,'');
+        if(st&&cc===st){var lv=await verifyLicense(cc); ok=!!(lv&&lv.ok)}
+      }catch(e){}
+    }else{
+      try{
+        var km=await crypto.subtle.importKey('raw',new TextEncoder().encode(code),'PBKDF2',false,['deriveBits']);
+        var salt=new Uint8Array(RS_SALT.match(/../g).map(function(x){return parseInt(x,16)}));
+        var bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:salt,iterations:200000},km,256);
+        ok=[].map.call(new Uint8Array(bits),function(x){return ('0'+x.toString(16)).slice(-2)}).join('')===RS_HASH;
+      }catch(e){}
+    }
+    if(!ok){
+      rfails++;$('lk-code').value='';m.style.color='var(--bad)';
+      if(rfails>=5){runtil=Date.now()+60000;rfails=0;m.textContent='5 wrong attempts. Try again in 60 sec.'}
+      else m.textContent='Wrong code or key. The Activation key must be the one activated on this phone.';
+      return;
+    }
+    rfails=0;
+    try{localStorage.removeItem(KEY)}catch(e){}
+    $('lk-code').value='';$('lk-reset').style.display='none';
+    unlock();
+    setTimeout(function(){try{$('mi-lock').click()}catch(e){}},300);   // straight to "set a new PIN"
+  }
+  $('lk-rgo').onclick=tryReset;
+  $('lk-code').addEventListener('keydown',function(e){if(e.key==='Enter')tryReset()});
   // lock again after the app was in the background for a while
   var hiddenAt=0;
   document.addEventListener('visibilitychange',function(){
@@ -2297,16 +2420,16 @@ setTimeout(go,1800);})();
   function msg(t,bad){var m=$('lc-msg');m.textContent=t;m.style.color=bad?'var(--bad)':'var(--dark)'}
   async function render(){
     var c=cfg(),has=!!(c&&c.hash);
-    $('lc-status').textContent=has?'PIN lock chalu che':'PIN lock band che';
+    $('lc-status').textContent=has?'PIN lock is on':'PIN lock is off';
     $('lc-curwrap').hidden=!has;$('lc-remove').hidden=!has;
-    $('lc-newl').textContent=has?'New PIN (4 thi 6 ank)':'PIN (4 thi 6 ank)';
+    $('lc-newl').textContent=has?'New PIN (4 to 6 digits)':'PIN (4 to 6 digits)';
     $('lc-save').textContent=has?'Change PIN':'Save PIN';
     ['lc-cur','lc-new','lc-new2'].forEach(function(i){$(i).value=''});
     var w=$('lc-fpwrap');w.hidden=!has;
     if(has){
       var ok=await fpAvailable();
       $('lc-fpbtn').disabled=!ok&&!c.fp;
-      $('lc-fpstat').textContent=c.fp?'Fingerprint chalu che.':(ok?'Fingerprint thi pan unlock kari shako.':'Aa device/browser ma fingerprint chalshe nahi (https page ane phone ma fingerprint set hovu joiye). PIN thi unlock thase.');
+      $('lc-fpstat').textContent=c.fp?'Fingerprint is on.':(ok?'You can also unlock with your fingerprint.':'Fingerprint will not work on this device/browser (it needs an https page and a fingerprint set up on the phone). Unlock with your PIN.');
       $('lc-fpbtn').textContent=c.fp?'Disable fingerprint':'Enable fingerprint';
     }
   }
@@ -2314,23 +2437,23 @@ setTimeout(go,1800);})();
   $('mi-lock').onclick=function(){closeMenus();msg('');render();$('dlg-lock').showModal()};
   $('lc-save').onclick=async function(){
     var c=cfg(),has=!!(c&&c.hash),p=$('lc-new').value,p2=$('lc-new2').value;
-    if(has&&!(await verifyCur(c))){msg('Current PIN khotu che.',true);return}
-    if(!/^\d{4,6}$/.test(p)){msg('PIN 4 thi 6 ank no hovo joiye.',true);return}
-    if(p!==p2){msg('Banne PIN sarkha nathi.',true);return}
+    if(has&&!(await verifyCur(c))){msg('The current PIN is wrong.',true);return}
+    if(!/^\d{4,6}$/.test(p)){msg('The PIN must be 4 to 6 digits.',true);return}
+    if(p!==p2){msg('The two PINs do not match.',true);return}
     var salt=hex(rnd(16));
     put({salt:salt,hash:await hashPin(p,salt),len:p.length,fp:has?c.fp:null});
-    await render();msg(has?'PIN badlai gayo.':'PIN set thai gayo. Have app khulse tyare PIN puchhase.');
+    await render();msg(has?'PIN changed.':'PIN set. The app will ask for the PIN the next time it opens.');
   };
   $('lc-remove').onclick=async function(){
     var c=cfg();if(!c)return;
-    if(!(await verifyCur(c))){msg('Current PIN khotu che.',true);return}
-    put(null);document.documentElement.classList.remove('locked');await render();msg('PIN lock kadhi nakhyu.');
+    if(!(await verifyCur(c))){msg('The current PIN is wrong.',true);return}
+    put(null);document.documentElement.classList.remove('locked');await render();msg('PIN lock removed.');
   };
   $('lc-fpbtn').onclick=async function(){
     var c=cfg();if(!c)return;
-    if(c.fp){c.fp=null;put(c);await render();msg('Fingerprint band karyu.');return}
-    try{c.fp=await fpRegister();put(c);await render();msg('Fingerprint chalu thayu.')}
-    catch(e){msg('Fingerprint chalu na thayu ('+(e&&e.name||'error')+'). Phone ma fingerprint set chhe ane page https par chhe te check karo.',true)}
+    if(c.fp){c.fp=null;put(c);await render();msg('Fingerprint turned off.');return}
+    try{c.fp=await fpRegister();put(c);await render();msg('Fingerprint turned on.')}
+    catch(e){msg('Could not turn on fingerprint ('+(e&&e.name||'error')+'). Check that a fingerprint is set up on the phone and that the page is on https.',true)}
   };
 })();
 </script>
@@ -2340,7 +2463,51 @@ setTimeout(go,1800);})();
 // The admin sees it live in key-generator.html, and can send the key back to the device.
 (function(){
   var DB='https://log-cft-cbm-key-generator-default-rtdb.firebaseio.com';   // <-- must match your Realtime Database URL
-  var FIRSTKEY='logcft_reg_first_v1', REQKEY='logcft_reg_req_v1', VER='1.0';
+  var FIRSTKEY='logcft_reg_first_v1', REQKEY='logcft_reg_req_v1', VER='1.2', FP='', ID_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}$/, EMAILKEY='logcft_email_v1', EM_RE=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  // Browser/phone fingerprint (hash only). Used so that clearing app data gives back the SAME Device ID.
+  async function fpHash(){
+    try{
+      if(!(window.crypto&&crypto.subtle)) return '';
+      var p=[Math.min(screen.width,screen.height),Math.max(screen.width,screen.height),screen.colorDepth,window.devicePixelRatio||1,
+        navigator.hardwareConcurrency||'',navigator.deviceMemory||'',navigator.maxTouchPoints||0,navigator.platform||'',
+        (navigator.languages&&navigator.languages.length?navigator.languages.join(','):navigator.language)||'',
+        (Intl.DateTimeFormat().resolvedOptions().timeZone)||''];
+      try{
+        var c=document.createElement('canvas'),g=c.getContext('webgl')||c.getContext('experimental-webgl');
+        if(g){var e=g.getExtension('WEBGL_debug_renderer_info'); if(e) p.push(g.getParameter(e.UNMASKED_VENDOR_WEBGL),g.getParameter(e.UNMASKED_RENDERER_WEBGL));}
+      }catch(x){}
+      try{
+        var k=document.createElement('canvas');k.width=200;k.height=40;var t=k.getContext('2d');
+        t.textBaseline='top';t.font='16px Arial';t.fillStyle='#f60';t.fillRect(10,2,80,20);t.fillStyle='#069';t.fillText('GreenCheck CFT 12345',4,12);
+        p.push(k.toDataURL());
+      }catch(x){}
+      var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p.join('|')));
+      return Array.prototype.map.call(new Uint8Array(b),function(v){return ('0'+v.toString(16)).slice(-2)}).join('');
+    }catch(e){return ''}
+  }
+  // New install / cleared data: if the server already knows this phone, take back its old Device ID, trial start and block status.
+  async function restoreId(){
+    try{
+      FP=await fpHash(); if(!FP) return;
+      var r=await fetch(DB+'/fp/'+FP+'.json'); if(!r.ok) return;
+      var j=await r.json(), cur=getDeviceId(), pend=false;
+      try{pend=localStorage.getItem('logcft_fppend_v1')==='1'}catch(e){}
+      if(j&&j.id&&ID_RE.test(j.id)){
+        if(pend&&j.id!==cur){
+          try{localStorage.setItem(DEVSTORE,j.id)}catch(e){}
+          try{document.cookie='logcft_dev='+j.id+'; max-age=315360000; path=/; SameSite=Lax'}catch(e){}
+          try{
+            var dr=await fetch(DB+'/devices/'+j.id+'.json'), dj=dr.ok?await dr.json():null;
+            if(dj&&dj.trialStart) wr(T_START,dj.trialStart);   // old trial start again: no new 30 days
+          }catch(e){}
+          refreshAct();
+        }
+      } else {
+        await fetch(DB+'/fp/'+FP+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:cur,ts:Date.now()})});
+      }
+      try{localStorage.removeItem('logcft_fppend_v1')}catch(e){}
+    }catch(e){}
+  }
   function $(id){return document.getElementById(id)}
   function node(){return DB+'/devices/'+encodeURIComponent(getDeviceId())+'.json'}
   function firstSeen(){
@@ -2365,8 +2532,10 @@ setTimeout(go,1800);})();
       refreshAct();
       var ts=rd(T_START), tstart=ts.length?Math.min.apply(null,ts):null;
       var o={id:getDeviceId(),lastSeen:Date.now(),firstSeen:firstSeen(),active:!!ACTIVE,
-        trialStart:tstart,trialEnd:tstart?tstart+TRIAL_DAYS*DAY:null,
+        trialStart:tstart,trialEnd:tstart?tstart+(TRIAL_DAYS+EXTRA_DAYS)*DAY:null,
         trialLeft:ACTIVE?null:TRIAL_LEFT,user:ACTIVE?(ACT_INFO||''):null,ver:VER};
+      if(FP) o.fp=FP;
+      var em0=getEmail(); if(em0) o.email=em0;
       if(extra) for(var k in extra) o[k]=extra[k];
       return patch(o).catch(function(){});
     }catch(e){return Promise.resolve()}
@@ -2375,8 +2544,22 @@ setTimeout(go,1800);})();
   async function checkKey(){
     try{
       var r=await fetch(node()); if(!r.ok) return;
-      var j=await r.json();
-      applyBlocked(!!(j&&j.blocked));          // admin can block / unblock this device
+      var j=await r.json(), em=getEmail(), eb=false;
+      if(em){ try{var er=await fetch(DB+'/emails/'+emailKey(em)+'.json'); if(er.ok){var ej=await er.json(); eb=!!(ej&&ej.blocked)}}catch(e){} }
+      if(j&&typeof j.extraDays==='number'&&j.extraDays!==EXTRA_DAYS){   // admin extended (or shortened) the trial
+        EXTRA_DAYS=j.extraDays; try{localStorage.setItem('logcft_extra_v1',String(EXTRA_DAYS))}catch(e){} refreshAct();
+      }
+      // admin pressed "Reset PIN" for this device: remove the app lock once (saved files stay), then the user sets a new PIN
+      if(j&&typeof j.resetPin==='number'&&j.resetPin!==j.pinResetDone){
+        var hs=0; try{hs=parseInt(localStorage.getItem('logcft_pinreset_v1'),10)||0}catch(e){}
+        if(j.resetPin>hs){
+          try{localStorage.setItem('logcft_pinreset_v1',String(j.resetPin))}catch(e){}
+          var had=false; try{had=!!localStorage.getItem('logcft_lock_v1'); localStorage.removeItem('logcft_lock_v1')}catch(e){}
+          try{await patch({pinResetDone:j.resetPin})}catch(e){}
+          if(had){ try{location.reload()}catch(e){} return }
+        }
+      }
+      applyBlocked(!!(j&&j.blocked)||eb);          // admin can block / unblock this device or the whole email
       if(ACTIVE||!j||!j.key||BLOCKED) return;
       var v=await verifyLicense(j.key); if(!v.ok) return;
       ACTIVE=true; ACT_INFO=v.info; LIC_ERR='';
@@ -2386,12 +2569,14 @@ setTimeout(go,1800);})();
     }catch(e){}
   }
   async function sendRequest(){
-    var m=$('req-msg'), nm=$('req-name').value.trim();
+    var m=$('req-msg'), nm=$('req-name').value.trim(), em=$('req-email').value.trim().toLowerCase();
+    if(!EM_RE.test(em)){m.innerHTML='<span class="err">Enter a valid email address.</span>';return}
     if(!nm){m.innerHTML='<span class="err">Enter your name / company name.</span>';return}
+    try{localStorage.setItem(EMAILKEY,em)}catch(e){}
     if(ACTIVE){m.textContent='This copy is already activated.';return}
     m.textContent='Sending...';
     try{
-      await patch({id:getDeviceId(),name:nm,requested:true,requestTs:Date.now(),lastSeen:Date.now(),firstSeen:firstSeen(),active:false,trialLeft:TRIAL_LEFT,ver:VER});
+      await patch({id:getDeviceId(),name:nm,email:em,requested:true,requestTs:Date.now(),lastSeen:Date.now(),firstSeen:firstSeen(),active:false,trialLeft:TRIAL_LEFT,ver:VER});
       try{localStorage.setItem(REQKEY,nm)}catch(e){}
       m.innerHTML='<span style="color:var(--ok)">Request sent. The key will be activated here automatically once the developer approves it.</span>';
     }catch(e){m.innerHTML='<span class="err">Could not send the request. Check your internet and try again.</span>'}
@@ -2399,13 +2584,179 @@ setTimeout(go,1800);})();
   $('req-go').onclick=sendRequest;
   $('mi-act').addEventListener('click',function(){
     try{var n=localStorage.getItem(REQKEY); if(n&&!$('req-name').value) $('req-name').value=n}catch(e){}
+    if(!$('req-email').value) $('req-email').value=getEmail();
     $('req-box').hidden=!!ACTIVE; $('req-go').hidden=!!ACTIVE; checkKey();
   });
+  // Lock screen "Forgot your PIN?" asks for a reset: check Firebase every few seconds until the admin has reset it
+  var waitT=0;
+  window.__logcftWaitReset=function(){
+    report().then(checkKey);
+    if(waitT) return; var n=0;
+    waitT=setInterval(function(){ if(++n>90){clearInterval(waitT);waitT=0;return} checkKey() },8000);
+  };
+  // ----- customer email (linked to this Device ID) -----
+  function getEmail(){try{return localStorage.getItem(EMAILKEY)||''}catch(e){return ''}}
+  function emailKey(e){return String(e||'').trim().toLowerCase().replace(/\./g,',').replace(/[#$\[\]\/]/g,'_')}
+  function openEmail(){
+    $('em-in').value=getEmail(); $('em-msg').textContent=''; $('em-cancel').hidden=!getEmail();
+    var d=$('dlg-email'); if(!d.open) d.showModal();
+  }
+  $('em-go').onclick=function(){
+    var v=$('em-in').value.trim().toLowerCase(), m=$('em-msg');
+    if(!EM_RE.test(v)){m.innerHTML='<span class="err">Enter a valid email address.</span>';return}
+    try{localStorage.setItem(EMAILKEY,v)}catch(e){}
+    $('dlg-email').close();
+    report().then(checkKey);
+  };
+  $('em-in').addEventListener('keydown',function(e){if(e.key==='Enter')$('em-go').click()});
+  $('dlg-email').addEventListener('cancel',function(e){if(!getEmail())e.preventDefault()});
+  $('mi-email').onclick=function(){closeMenus();openEmail()};
+  // ask for the email on first use (waits while the PIN screen, splash or another dialog is showing)
+  setInterval(function(){
+    if(getEmail()||BLOCKED||document.getElementById('splash')) return;
+    if(document.documentElement.classList.contains('locked')||document.querySelector('dialog[open]')) return;
+    openEmail();
+  },1500);
   // report on start, when the app comes to the front, and every 5 minutes
-  setTimeout(function(){report().then(checkKey)},800);
+  setTimeout(function(){restoreId().then(function(){return report()}).then(checkKey)},800);
   setInterval(function(){if(BLOCKED) checkKey()},30000);   // a blocked device re-checks quickly so an unblock takes effect soon
   document.addEventListener('visibilitychange',function(){if(!document.hidden){report().then(checkKey)}});
   setInterval(function(){report().then(checkKey)},300000);
+})();
+</script>
+<script>
+// ---------- Backup / Restore (manual, daily, weekly) ----------
+// One JSON file with all saved files + settings. License / trial / PIN / API keys are NOT included on purpose.
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var CFG='logcft_bk_v1', FOLDER='Log CFT-CBM Backup', PREFIX='LogCFT-CBM-backup-', KEEP=10;
+  var SKIP=/^logcft_(t1|t2|act_v1|lic_v1|dev_v1|blocked_v1|extra_v1|reg_[a-z0-9_]+|fppend_v1|email_v1|lock_v1|key_v1|okey_v1|gkey_v1|fb_v1|tomb_v1|bk_v1)$/;
+  var HAS_DIR=typeof window.showDirectoryPicker==='function', running=false;
+  function cfg(){try{return JSON.parse(localStorage.getItem(CFG)||'{}')||{}}catch(e){return {}}}
+  function put(c){try{localStorage.setItem(CFG,JSON.stringify(c))}catch(e){}}
+  function msg(t,bad){var m=$('bk-msg');m.textContent=t||'';m.style.color=bad?'var(--bad)':'var(--ok)'}
+  function pad(n){return String(n).padStart(2,'0')}
+  function fname(){var d=new Date();return PREFIX+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+'.json'}
+  function collect(){var d={};try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^logcft_/.test(k)&&!SKIP.test(k))d[k]=localStorage.getItem(k)}}catch(e){}return d}
+  // ----- folder handle kept in IndexedDB (only Chrome-type browsers that support folders) -----
+  function idb(){return new Promise(function(res,rej){var r=indexedDB.open('logcft_bk',1);r.onupgradeneeded=function(){r.result.createObjectStore('h')};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}})}
+  async function getH(){try{var db=await idb();return await new Promise(function(res){var t=db.transaction('h').objectStore('h').get('dir');t.onsuccess=function(){res(t.result||null)};t.onerror=function(){res(null)}})}catch(e){return null}}
+  async function setH(h){var db=await idb();return new Promise(function(res,rej){var tx=db.transaction('h','readwrite');tx.objectStore('h').put(h,'dir');tx.oncomplete=res;tx.onerror=function(){rej(tx.error)}})}
+  async function perm(h,ask){try{var o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;if(ask&&await h.requestPermission(o)==='granted')return true}catch(e){}return false}
+  async function writeFolder(h,name,text){
+    var fh=await h.getFileHandle(name,{create:true}),w=await fh.createWritable();await w.write(text);await w.close();
+    try{var names=[];for await(var en of h.entries()){if(en[1].kind==='file'&&en[0].indexOf(PREFIX)===0)names.push(en[0])}
+      names.sort();while(names.length>KEEP){await h.removeEntry(names.shift())}}catch(e){}
+  }
+  function download(name,text){
+    var b=new Blob([text],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');
+    a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u)},4000);
+  }
+  function record(){var c=cfg();c.last=Date.now();c.snooze=0;put(c)}
+  // ----- backup -----
+  async function doBackup(ask){
+    var d=collect(); if(!Object.keys(d).length) return {ok:false,empty:true,msg:'Nothing to back up yet.'};
+    var dev='';try{dev=getDeviceId()}catch(e){}
+    var text=JSON.stringify({app:'LogCFT-CBM',v:1,created:new Date().toISOString(),device:dev,data:d}), name=fname();
+    var h=HAS_DIR?await getH():null;
+    if(h&&await perm(h,ask)){
+      try{await writeFolder(h,name,text);record();return {ok:true,msg:'Backup saved in folder "'+h.name+'": '+name}}catch(e){}
+    }
+    if(!ask) return {ok:false,msg:'needs tap'};
+    download(name,text);record();
+    return {ok:true,msg:'Backup downloaded: '+name+' (see your Downloads folder).'};
+  }
+  // ----- restore -----
+  async function applyBackup(text){
+    var j;try{j=JSON.parse(text)}catch(e){msg('This is not a valid backup file.',1);return}
+    if(!j||j.app!=='LogCFT-CBM'||!j.data||typeof j.data!=='object'){msg('This is not a Log CFT/CBM backup file.',1);return}
+    var keys=Object.keys(j.data).filter(function(k){return /^logcft_/.test(k)&&!SKIP.test(k)});
+    if(!keys.length){msg('The backup file is empty.',1);return}
+    var nf=0;try{nf=Object.keys(JSON.parse(j.data.logcft_files_v1||'{}')).length}catch(e){}
+    var when=j.created?new Date(j.created).toLocaleString():'';
+    var ok=await askConfirm('Restore backup'+(when?' from '+when:'')+' ('+nf+' saved file(s))? Files with the same name are kept as the newer version; settings are replaced by the backup.','Restore');
+    if(!ok){msg('Restore cancelled.');return}
+    try{
+      keys.forEach(function(k){
+        var v=j.data[k];
+        if(k==='logcft_files_v1'){   // merge: newer copy of each file wins
+          var cur={},inc={};try{cur=JSON.parse(localStorage.getItem(k)||'{}')||{}}catch(e){}try{inc=JSON.parse(v||'{}')||{}}catch(e){}
+          Object.keys(inc).forEach(function(n){if(!cur[n]||(inc[n].updated||0)>=(cur[n].updated||0))cur[n]=inc[n]});
+          localStorage.setItem(k,JSON.stringify(cur));
+        } else localStorage.setItem(k,String(v));
+      });
+    }catch(e){msg('Could not restore: browser storage is full or unavailable.',1);return}
+    msg('Restored. Reloading...');setTimeout(function(){location.reload()},900);
+  }
+  async function restoreFolder(){
+    try{
+      var h=await getH();
+      if(!(h&&await perm(h,true))){
+        var root=await window.showDirectoryPicker({mode:'readwrite',id:'logcftbk'});
+        try{h=await root.getDirectoryHandle(FOLDER)}catch(e){h=root}
+        try{await setH(h)}catch(e){}
+      }
+      var best='';for await(var en of h.entries()){if(en[1].kind==='file'&&en[0].indexOf(PREFIX)===0&&en[0]>best)best=en[0]}
+      if(!best){msg('No backup file found in this folder.',1);return}
+      var f=await (await h.getFileHandle(best)).getFile();
+      await applyBackup(await f.text());
+    }catch(e){if(e&&e.name!=='AbortError')msg('Could not read the folder.',1)}
+  }
+  // ----- schedule -----
+  function due(){
+    var c=cfg();if(!c.sched||c.sched==='manual')return false;
+    var l=c.last||0;if(!l)return true;var n=new Date(),L=new Date(l);
+    return c.sched==='daily'?(n.toDateString()!==L.toDateString()):((n-L)>=7*864e5);
+  }
+  function showBar(on){$('bk-bar').style.display=on?'flex':'none'}
+  async function tick(){
+    if(running||!due()) return;
+    var c=cfg();if(c.snooze&&Date.now()<c.snooze) return;
+    if(document.hidden||document.documentElement.classList.contains('locked')||document.querySelector('dialog[open]')) return;
+    running=true;
+    try{var r=await doBackup(false);
+      if(r.ok||r.empty) showBar(false);
+      else{$('bk-bar-t').textContent=(cfg().sched==='weekly'?'Weekly':'Daily')+' backup is due.';showBar(true)}
+    }finally{running=false}
+  }
+  $('bk-bar-go').onclick=async function(){var r=await doBackup(true);showBar(false);if(!r.ok&&!r.empty){showBar(true)}};
+  $('bk-bar-x').onclick=function(){var c=cfg();c.snooze=Date.now()+6*3600000;put(c);showBar(false)};
+  // ----- dialog -----
+  async function refresh(){
+    var c=cfg(),l=c.last?new Date(c.last).toLocaleString():'';
+    $('bk-status').textContent=l?('Last backup: '+l):'No backup yet.';
+    document.querySelectorAll('input[name=bk-s]').forEach(function(r){r.checked=(r.value===(c.sched||'manual'))});
+    $('bk-folder-box').style.display=HAS_DIR?'block':'none';
+    $('bk-nofolder').style.display=HAS_DIR?'none':'block';
+    $('bk-rfolder').style.display=HAS_DIR?'inline-block':'none';
+    if(HAS_DIR){var h=await getH();$('bk-folder').textContent=h?('Folder: '+h.name):'No folder chosen. Backups will be downloaded.'}
+  }
+  $('mi-bk').onclick=function(){
+    closeMenus();msg('');refresh();$('dlg-bk').showModal();
+    try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}   // ask the browser not to evict app data
+  };
+  document.querySelectorAll('input[name=bk-s]').forEach(function(r){r.onchange=function(){
+    var c=cfg();c.sched=r.value;put(c);
+    msg(r.value==='manual'?'Automatic backup is off.':((r.value==='daily'?'Daily':'Weekly')+' backup is on. A backup is made when you open the app and it is due.'));
+    tick();
+  }});
+  $('bk-pick').onclick=async function(){
+    try{
+      var root=await window.showDirectoryPicker({mode:'readwrite',id:'logcftbk'});
+      var sub=await root.getDirectoryHandle(FOLDER,{create:true});
+      await setH(sub);await refresh();msg('Backups will be saved in "'+FOLDER+'" inside the folder you chose.');
+    }catch(e){if(e&&e.name!=='AbortError')msg('Could not use this folder. Choose another one.',1)}
+  };
+  $('bk-now').onclick=async function(){msg('Backing up...');var r=await doBackup(true);msg(r.msg,!r.ok);refresh();showBar(false)};
+  $('bk-rfolder').onclick=restoreFolder;
+  $('bk-rfile').onclick=function(){$('bk-file').value='';$('bk-file').click()};
+  $('bk-file').onchange=function(){
+    var f=this.files&&this.files[0];if(!f)return;
+    var r=new FileReader();r.onload=function(){applyBackup(String(r.result))};r.onerror=function(){msg('Could not read the file.',1)};r.readAsText(f);
+  };
+  setTimeout(tick,4000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(tick,1500)});
+  setInterval(tick,30*60000);
 })();
 </script>
 </body>
