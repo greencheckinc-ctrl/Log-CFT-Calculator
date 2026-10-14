@@ -1849,7 +1849,7 @@ const ACT_SALT="74fdda1040218ce32e53d68014c5fc41", ACT_HASH="00c4be6201526371acb
 let ACTIVE=false, ACT_INFO='', LIC_ERR='';
 let BLOCKED=false; try{BLOCKED=localStorage.getItem('logcft_blocked_v1')==='1'}catch(e){}
 // Personal (per-user) keys are signed by the developer; only the public key is stored here.
-const LIC_PUB={"kty":"EC","crv":"P-256","x":"KO0hoFy2hhg5OxqWfCJnpqze-WE4KRaMU5pyOE9BmsU","y":"RDb4Wd2eL1d9RcTYgphoKVUz-jOr2DGZwQHWI2LqOaY"}, LICSTORE='logcft_lic_v1', DEVSTORE='logcft_dev_v1';
+const LIC_PUB={"kty":"EC","crv":"P-256","x":"fppD7VGHaiPDilVxx__41ZgIIopuuW2EYCp0NKVleF8","y":"aT3oradn8vvFYa5DEw-_h2ko0qBz68aJfAAJx4PcbbE"}, LICSTORE='logcft_lic_v1', DEVSTORE='logcft_dev_v1';
 function b64uToBytes(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const b=atob(t),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
 function getDeviceId(){
   let d=''; try{d=localStorage.getItem(DEVSTORE)||''}catch(e){}
