@@ -1957,9 +1957,11 @@ document.getElementById('fb-go').onclick=async()=>{
   fbDirty=false;
   if(window.__syncApiKey) await window.__syncApiKey();   // sends the Sync ID / token to the developer and refreshes the assigned database
   fbNote();
-  if(!c.on){m.textContent='Sync is off.';setSyncDot('none');return}
-  if(!managedUrl()){m.innerHTML='<span class="err">No database is assigned to this device yet. Please contact the developer.</span>';setSyncDot('none');return}
+  const repErr=()=>(window.__syncRep&&window.__syncRep!=='ok')?'<br><span class="err">Your Sync ID could not be sent to the developer ('+window.__syncRep+'). Please tell the developer to update the database rules.</span>':'';
+  if(!c.on){m.innerHTML='Sync is off.'+repErr();setSyncDot('none');return}
+  if(!managedUrl()){m.innerHTML='<span class="err">No database is assigned to this device yet. Please contact the developer.</span>'+repErr();setSyncDot('none');return}
   m.textContent='Syncing...'; fbStatus(await fbSync()); restoreLatest();
+  m.innerHTML+=repErr();
 };
 document.addEventListener('visibilitychange',()=>{if(!document.hidden) fbSync()});
 setInterval(fbSync,60000);
@@ -2714,10 +2716,11 @@ setTimeout(go,1800);})();
   // AI key for reading sheet photos: set / stopped / removed by the developer in the key generator
   function applyApiFrom(j){
     var m=null; if(j&&j.apiKey&&j.apiOn!==false) m={prov:j.apiProv||'gemini',key:String(j.apiKey),model:j.apiModel||''};
-    applySyncFrom(j);
+    var syncPr=applySyncFrom(j);
     try{ localStorage.setItem('logcft_paste_v1', j&&j.pasteOn===true?'1':'0') }catch(e){}   // Paste sizes: only when the developer switched it ON for this device
     if(window.__applyManagedKey) window.__applyManagedKey(m);
     try{ if(typeof flushApiUses==='function'&&pend()>0) flushApiUses() }catch(e){}
+    return syncPr;
   }
   // Counts every photo reading, so the developer can see how often this device used its AI key
   var APIPEND='logcft_apipend_v1', flushing=false;
@@ -2750,15 +2753,17 @@ setTimeout(go,1800);})();
         if(j.syncId!==loc.id||(j.syncAuth||'')!==(loc.auth||'')||rts!==t) up={syncId:loc.id,syncAuth:loc.auth||null,syncTs:t};
       }
       if(loc.url&&!j.syncUrl&&!j.syncUrlOld) up=Object.assign(up||{},{syncUrlOld:String(loc.url)});   // lets the developer see the URL this customer used before
-      if(up) patch(up).catch(function(){});
+      var pr=null;
+      if(up) pr=patch(up).then(function(){window.__syncRep='ok'},function(e){window.__syncRep=String(e&&e.message||e)});
       if(changed){ try{ if(typeof fbSync==='function') fbSync(); if(window.__fbRefreshDlg) window.__fbRefreshDlg() }catch(e){} }
+      return pr;
     }catch(e){}
   }
   window.__syncApiKey=async function(){
     try{
       var c=new AbortController(), t=setTimeout(function(){c.abort()},5000);
       var r=await fetch(node(),{cache:'no-store',signal:c.signal}); clearTimeout(t);
-      if(r.ok) applyApiFrom(await r.json());
+      if(r.ok) await applyApiFrom(await r.json());
     }catch(e){}
   };
   async function checkKey(){
