@@ -62,6 +62,17 @@ button.ghost{background:transparent;color:var(--bad);padding:4px 10px;font-size:
 button.ghost.plus{color:var(--ok);font-weight:700}
 td.act{white-space:nowrap;text-align:right}
 img#prev{max-width:100%;margin-top:8px;border-radius:4px}
+tr.xbad td:nth-child(2) input{border:2px solid #d98200;background:#fff3dd;color:#8a4b00;font-weight:700}
+tr.xbad td.cft,tr.xbad td.idx{font-weight:700;color:#a85c00}
+.xs{display:block;font-size:.68rem;font-weight:600;line-height:1.1}
+#photos .phhead{display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px}
+#photos .phx{padding:4px 10px;font-size:.8rem}
+#photos .ph{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px;margin:6px 0;background:#fff}
+#photos .ph img{width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;flex:none}
+#photos .phi{flex:1;min-width:0;font-size:.85rem}
+#photos .phn{font-weight:700}
+#photos .phs.err{color:var(--bad)}#photos .phs.ok{color:var(--ok)}#photos .phs.warn{color:#8a4b00}
+#photos .phd{padding:6px 10px;font-size:.9rem;background:#fff;color:var(--bad);border:1px solid var(--line)}
 table{width:100%;border-collapse:collapse}
 th,td{padding:4px;border-bottom:1px solid var(--line);text-align:left;font-size:.95rem}
 td input{width:8em;max-width:100%;padding:6px;border:1px solid var(--line);border-radius:3px;font:inherit}
@@ -639,6 +650,7 @@ html.locked body{overflow:hidden}
       <option value="openai">OpenAI (GPT)</option>
       <option value="gemini">Google (Gemini - free key)</option>
       <option value="sarvam">Sarvam AI</option>
+      <option value="tesseract">Tesseract OCR (free)</option>
     </select>
     <div id="box-anthropic" style="margin-top:8px">
       <label for="key">Anthropic API key (used only in your browser)</label>
@@ -682,8 +694,9 @@ html.locked body{overflow:hidden}
 </dialog>
 
 <div class="box">
-  <label for="file">Sheet photo</label>
-  <input id="file" type="file" accept="image/*">
+  <label for="file">Sheet photos (add one or many)</label>
+  <input id="file" type="file" accept="image/*" multiple>
+  <div id="photos"></div>
   <img id="prev" alt="" hidden>
   <div class="btnrow"><button id="go" type="button">Read sizes</button><button id="paste-open" type="button" class="alt">Paste sizes</button></div>
   <div id="status" role="status"></div>
@@ -705,6 +718,10 @@ html.locked body{overflow:hidden}
   <div id="chk" hidden style="margin:8px 0;padding:8px;border:2px solid var(--bad);border-radius:6px;background:#fde8e6">
     <span id="chk-n" style="color:var(--bad);font-weight:600"></span>
     <button type="button" id="chk-go" style="margin-left:8px;padding:6px 12px">Go to next</button>
+  </div>
+  <div id="xchk" hidden style="margin:8px 0;padding:8px;border:2px solid #d98200;border-radius:6px;background:#fff3dd">
+    <span id="xchk-n" style="color:#8a4b00;font-weight:600"></span>
+    <button type="button" id="xchk-go" style="margin-left:8px;padding:6px 12px;background:#d98200">Go to next</button>
   </div>
   <div id="saved" class="sub" style="font-size:.8rem;margin:0" role="status"></div>
   <div class="total"><span id="tot-label">Total CFT</span>: <span id="sum">0.00</span> &nbsp;(<span id="cnt">0</span> logs)<span id="tot2" style="display:block;font-size:.85rem;font-weight:600;color:var(--muted)"></span></div>
@@ -942,6 +959,20 @@ function gSortBy(k){
   try{localStorage.setItem('logcft_gsort_v1',JSON.stringify(GSORT))}catch(e){}
   update();
 }
+// Cross-check: the C.F.T. / CBM printed on the paper sheet against what the size gives
+function sheetCheck(sc,v){
+  if(sc===undefined||sc===null||sc==='') return null;
+  const s=String(sc).replace(/,/g,'.').replace(/[^\d.]/g,''); let n=parseFloat(s);
+  if(s===''||!isFinite(n)) return null;
+  if(MODE==='round'){
+    const r=roundVol(v); if(!r) return null;
+    const c=[[n,r.cbm,0.0015],[n,r.cft,0.0105]]; if(n>=10&&s.indexOf('.')<0) c.push([n/100,r.cft,0.0105]);
+    return {ok:c.some(x=>Math.abs(x[0]-x[1])<=x[2]),sheet:n,calc:r.cbm};
+  }
+  const c=calc(v); if(c===null) return null;
+  if(s.indexOf('.')<0&&n>=10) n=n/100;
+  return {ok:Math.abs(n-c)<=0.0105,sheet:n,calc:c};
+}
 function update(){
   let sum=0,sumCft=0,cnt=0,i=1;
   rows.querySelectorAll('tr').forEach(tr=>{
@@ -953,7 +984,12 @@ function update(){
     tr.classList.toggle('bad',c===null&&!!v);
     if(c===null){cell.textContent=v?'?':'-';cell.className='num cft'+(v?' err':'');}
     else{cell.textContent=fmtVal(c);cell.className='num cft';sum+=c;cnt++;}
+    const ck=tr.dataset.sc?sheetCheck(tr.dataset.sc,v):null, xb=!!ck&&!ck.ok&&c!==null;
+    tr.classList.toggle('xbad',xb);
+    if(xb){const sm=document.createElement('small');sm.className='xs';sm.textContent='sheet '+tr.dataset.sc;cell.appendChild(sm)}
   });
+  { const nx=rows.querySelectorAll('tr.xbad').length, xc=document.getElementById('xchk');
+    if(xc){xc.hidden=!nx;document.getElementById('xchk-n').textContent=nx+(nx===1?' row does':' rows do')+' not match the sheet\'s '+(MODE==='round'?'CFT/CBM':'C.F.T.')+' - check the size'} }
   const nb=rows.querySelectorAll('tr.bad').length, ck=document.getElementById('chk');
   if(ck){ck.hidden=!nb;document.getElementById('chk-n').textContent=nb+(nb===1?' size needs':' sizes need')+' checking';}
   const g={};
@@ -983,9 +1019,9 @@ function sortKey(v){
   return [p.a,p.b,lengthFt(p.code)];
 }
 function sortRows(){
-  const l=getList().map(normalize);
-  l.sort((x,y)=>sortKey(x)[0]-sortKey(y)[0]); // first number only, rest keeps original order
-  rows.innerHTML=''; l.forEach(v=>addRow(v)); update();
+  const l=[...rows.querySelectorAll('tr')].map(tr=>({v:normalize(tr.querySelector('input').value),sc:tr.dataset.sc||'',sr:tr.dataset.sr||''})).filter(x=>x.v);
+  l.sort((x,y)=>sortKey(x.v)[0]-sortKey(y.v)[0]); // first number only, rest keeps original order
+  rows.innerHTML=''; l.forEach(x=>{const tr=addRow(x.v); if(x.sc) tr.dataset.sc=x.sc; if(x.sr) tr.dataset.sr=x.sr}); update();
 }
 document.getElementById('sort').onclick=sortRows;
 document.getElementById('grp-ranges').addEventListener('input',e=>{
@@ -1008,6 +1044,13 @@ document.getElementById('gr-clear').onclick=()=>{grList().length=0; grSave(); gr
   el.addEventListener('click',()=>gSortBy(a[1]));
   el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();gSortBy(a[1])}});
 });
+let xPos=-1;
+document.getElementById('xchk-go').onclick=()=>{
+  const bad=[...rows.querySelectorAll('tr.xbad')]; if(!bad.length) return;
+  xPos=(xPos+1)%bad.length;
+  const inp=bad[xPos].querySelector('input');
+  inp.scrollIntoView({block:'center',behavior:'smooth'}); inp.focus(); inp.select();
+};
 let badPos=-1;
 document.getElementById('chk-go').onclick=()=>{
   const bad=[...rows.querySelectorAll('tr.bad')]; if(!bad.length) return;
@@ -1154,16 +1197,84 @@ async function shareSawnPdf(){
   }
 }
 
-let cachedB64=null, cachedMime='image/jpeg';
-file.onchange=()=>{
-  const f=file.files[0]; if(!f) return;
-  prev.src=URL.createObjectURL(f); prev.hidden=false;
-  cachedB64=null;
+// A line like "6x5-76 182" is a size plus the sheet's own C.F.T.
+function splitSizeCft(x){
+  x=String(x).trim();
+  const m=x.match(/^(.*?)[\s,|:]+(\d{1,4}(?:\.\d+)?)$/);
+  if(m&&/[x×*\-–—]/i.test(m[1])) return {size:m[1].trim(),sc:m[2]};
+  return {size:x,sc:''};
+}
+// AI / pasted JSON -> {arr:sizes, sc:sheet values, sr:serials, missing:[]}
+function normAi(parsed){
+  const out={arr:[],sc:[],sr:[],missing:[]};
+  if(parsed.length&&typeof parsed[0]==='object'){
+    const m={}; parsed.forEach(x=>{const n=parseInt(x.sr,10); if(n>0&&m[n]===undefined) m[n]=x});
+    const keys=Object.keys(m).map(Number); if(!keys.length) return out;
+    const last=Math.max(...keys);
+    for(let i=1;i<=last;i++){
+      const x=m[i];
+      if(x===undefined){out.arr.push('?');out.sc.push('');out.sr.push(i);out.missing.push(i);continue}
+      const sp=splitSizeCft(x.size), raw=x.cft!==undefined?x.cft:(x.val!==undefined?x.val:(x.cbm!==undefined?x.cbm:''));
+      const rs=(raw===null||raw===undefined||String(raw).trim()==='?')?'':String(raw).trim();
+      out.arr.push(sp.size); out.sc.push(rs||sp.sc); out.sr.push(i);
+    }
+  }else parsed.forEach((x,i)=>{const sp=splitSizeCft(x);out.arr.push(sp.size);out.sc.push(sp.sc);out.sr.push(i+1)});
+  return out;
+}
+// Puts the sizes into the table (after the rows already there) and returns the new rows
+function appendRows(res,phNo){
+  [...rows.querySelectorAll('tr')].forEach(tr=>{ if(!tr.querySelector('input').value.trim()) tr.remove() });
+  const trs=res.arr.map((sz,i)=>{const tr=addRow(esc(String(sz))); if(res.sc[i]) tr.dataset.sc=res.sc[i]; tr.dataset.sr=res.sr[i]; if(phNo) tr.dataset.ph=phNo; return tr});
+  update(); return trs;
+}
+// Tells how well the new rows agree with the sheet
+function sheetReport(trs){
+  let cmp=0,bad=[],sSum=0,cSum=0;
+  trs.forEach(tr=>{
+    const v=tr.querySelector('input').value.trim(), ck=tr.dataset.sc?sheetCheck(tr.dataset.sc,v):null;
+    if(!ck) return; cmp++; if(!ck.ok) bad.push(tr.dataset.sr||'?');
+    if(MODE!=='round'){sSum+=ck.sheet;cSum+=ck.calc}
+  });
+  return {cmp:cmp,bad:bad,sSum:sSum,cSum:cSum};
+}
+function modeHint(arr){
+  const ok=arr.filter(x=>x&&x!=='?'); if(ok.length<5) return '';
+  const sawnLike=ok.filter(x=>/^\d+(?:\.\d+)?\s*[x×*]\s*\d+(?:\.\d+)?\s*[-–—]\s*\d{2}$/i.test(x)).length/ok.length;
+  if(MODE==='round'&&sawnLike>0.6) return ' <span class="err">These look like Sawn timber sizes but the app is in Round log mode. Change the type at the top to Sawn timber.</span>';
+  if(MODE==='sawn'&&sawnLike<0.2) return ' <span class="err">These do not look like Sawn timber sizes (7x7-76). Check the type at the top (Sawn timber / Round log).</span>';
+  return '';
+}
+
+// ---------- Sheet photos: add many, read them all, everything on this page ----------
+const PHOTOS=[]; let phSeq=0, phBusy=false;
+function addPhoto(f){
+  const p={id:++phSeq,f:f,url:URL.createObjectURL(f),state:'new',msg:'',b64:null,mime:'image/jpeg'};
+  PHOTOS.push(p);
   // read the photo into memory right away (Android can revoke access to the picked file later)
-  cachedMime='image/jpeg';
-  shrinkToB64(f,2200).then(d=>{cachedB64=d;cachedMime='image/jpeg'})
-    .catch(()=>toBase64(f).then(d=>{cachedB64=d;cachedMime=f.type||'image/jpeg'}).catch(()=>{}));
+  shrinkToB64(f,2200).then(d=>{p.b64=d;p.mime='image/jpeg'}).catch(()=>toBase64(f).then(d=>{p.b64=d;p.mime=f.type||'image/jpeg'}).catch(()=>{}));
+}
+function renderPhotos(){
+  const box=document.getElementById('photos');
+  if(!PHOTOS.length){box.innerHTML='';prev.hidden=true;return}
+  box.innerHTML='<div class="phhead"><b>'+PHOTOS.length+' photo'+(PHOTOS.length>1?'s':'')+'</b><button type="button" class="alt phx" id="ph-clear">Remove all</button></div>'+
+    PHOTOS.map((p,i)=>{
+      const cls=p.state==='error'?'err':(p.state==='done'?(p.warn?'warn':'ok'):''), txt=p.state==='new'?'Ready to read':(p.state==='reading'?('Reading... '+(p.pct||0)+'%'):p.msg);
+      return '<div class="ph"><img src="'+p.url+'" alt="Photo '+(i+1)+'" data-view="'+p.id+'"><div class="phi"><div class="phn">Photo '+(i+1)+'</div><div class="phs '+cls+'">'+txt+'</div></div><button type="button" class="alt phd" data-del="'+p.id+'" aria-label="Remove photo">x</button></div>';
+    }).join('');
+}
+file.onchange=()=>{
+  [...file.files].forEach(addPhoto);
+  file.value='';           // so the same / next photos can be added again
+  renderPhotos();
+  if(PHOTOS.length){const l=PHOTOS[PHOTOS.length-1]; prev.src=l.url; prev.hidden=false}
 };
+document.getElementById('photos').addEventListener('click',e=>{
+  const v=e.target.closest('[data-view]'), d=e.target.closest('[data-del]'), c=e.target.closest('#ph-clear');
+  if(v){const p=PHOTOS.find(x=>x.id==v.getAttribute('data-view')); if(p){prev.src=p.url;prev.hidden=false;prev.scrollIntoView({block:'nearest'})}}
+  if((d||c)&&phBusy) return;
+  if(d){const i=PHOTOS.findIndex(x=>x.id==d.getAttribute('data-del')); if(i>-1){URL.revokeObjectURL(PHOTOS[i].url);PHOTOS.splice(i,1);renderPhotos()}}
+  if(c){PHOTOS.forEach(p=>URL.revokeObjectURL(p.url));PHOTOS.length=0;renderPhotos()}
+});
 // Shrink big phone photos (max 2200 px, JPEG) so the upload is small and reliable
 function shrinkToB64(f,maxSide){
   return new Promise((res,rej)=>{
@@ -1186,11 +1297,63 @@ function shrinkToB64(f,maxSide){
 function toBase64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('The photo could not be read. Tap "Choose file" and select the photo again.'));r.readAsDataURL(f)})}
 
 
-function curKey(){return PROVIDER==='openai'?document.getElementById('okey').value.trim():PROVIDER==='gemini'?document.getElementById('gkey').value.trim():PROVIDER==='sarvam'?document.getElementById('skey').value.trim():document.getElementById('key').value.trim()}
-function provName(){return PROVIDER==='openai'?'OpenAI':PROVIDER==='gemini'?'Google Gemini':PROVIDER==='sarvam'?'Sarvam AI':'Anthropic'}
-function provHost(){return PROVIDER==='openai'?'api.openai.com':PROVIDER==='gemini'?'generativelanguage.googleapis.com':PROVIDER==='sarvam'?'api.sarvam.ai':'api.anthropic.com'}
+function curKey(){return PROVIDER==='tesseract'?'ocr':PROVIDER==='openai'?document.getElementById('okey').value.trim():PROVIDER==='gemini'?document.getElementById('gkey').value.trim():PROVIDER==='sarvam'?document.getElementById('skey').value.trim():document.getElementById('key').value.trim()}
+function provName(){return PROVIDER==='tesseract'?'Tesseract OCR (free)':PROVIDER==='openai'?'OpenAI':PROVIDER==='gemini'?'Google Gemini':PROVIDER==='sarvam'?'Sarvam AI':'Anthropic'}
+function provHost(){return PROVIDER==='tesseract'?'cdn.jsdelivr.net':PROVIDER==='openai'?'api.openai.com':PROVIDER==='gemini'?'generativelanguage.googleapis.com':PROVIDER==='sarvam'?'api.sarvam.ai':'api.anthropic.com'}
 // Sends the sheet photo to the chosen provider, streams the answer, returns the full text.
+// ---------- Tesseract OCR: free, runs on this phone, no API key ----------
+const TESS_URL='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', TESS_LANG='https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
+let ocrWorker=null, ocrTick=null;
+function loadScript(src){return new Promise((res,rej)=>{const e=document.createElement('script');e.src=src;e.onload=res;e.onerror=()=>rej(new Error('Could not load the free OCR engine. Check internet (needed the first time).'));document.head.appendChild(e)})}
+async function ocrEngine(){
+  if(!window.Tesseract) await loadScript(TESS_URL);
+  if(!ocrWorker){
+    ocrWorker=await Tesseract.createWorker('eng',1,{langPath:TESS_LANG,logger:m=>{if(ocrTick&&m.status==='recognizing text')ocrTick(m.progress*100)}});
+    await ocrWorker.setParameters({tessedit_pageseg_mode:'11',tessedit_char_whitelist:'0123456789xX*-.'});
+  }
+  return ocrWorker;
+}
+function ocrWords(d){
+  let w=d.words;
+  if(!w&&d.blocks){w=[];d.blocks.forEach(b=>(b.paragraphs||[]).forEach(p=>(p.lines||[]).forEach(l=>(l.words||[]).forEach(x=>w.push(x)))))}
+  return w||[];
+}
+// words with positions -> [{sr,size,cft}] (columns left to right, rows top to bottom)
+function ocrToRows(words,W){
+  const round=MODE==='round';
+  const re=round?/^\d{1,3}(?:\.\d+)?x\d{1,3}(?:\.\d+)?$/:/^\d{1,2}(?:\.\d+)?x\d{1,2}(?:\.\d+)?-\d{2}$/;
+  const T=words.filter(w=>w&&w.text&&w.bbox).map(w=>({t:String(w.text).trim().replace(/[×*]/g,'x').replace(/[–—]/g,'-').replace(/X/g,'x'),cx:(w.bbox.x0+w.bbox.x1)/2,cy:(w.bbox.y0+w.bbox.y1)/2,h:w.bbox.y1-w.bbox.y0,x0:w.bbox.x0,x1:w.bbox.x1})).filter(w=>w.t);
+  if(!T.length) return [];
+  const hs=T.map(w=>w.h).sort((a,b)=>a-b), mh=hs[hs.length>>1]||20;
+  // a size that was cut in two pieces, e.g. "6x5-" + "76"
+  const extra=[];
+  T.forEach(a=>{ if(re.test(a.t)||!/[x\-]/.test(a.t)) return;
+    let best=null; T.forEach(b=>{ if(b===a||Math.abs(b.cy-a.cy)>mh*0.5||b.x0<a.x1-2||b.x0-a.x1>mh*1.3) return; if(!best||b.x0<best.x0) best=b; });
+    if(best&&re.test(a.t+best.t)) extra.push({t:a.t+best.t,cx:(a.x0+best.x1)/2,cy:(a.cy+best.cy)/2,h:a.h,x0:a.x0,x1:best.x1,used:best}); });
+  const used=new Set(); extra.forEach(e=>used.add(e.used));
+  const sizes=T.filter(w=>re.test(w.t)).concat(extra).sort((a,b)=>a.cx-b.cx);
+  const cols=[]; sizes.forEach(z=>{const c=cols[cols.length-1]; if(c&&z.cx-c.last<=W*0.08){c.items.push(z);c.last=z.cx}else cols.push({items:[z],last:z.cx})});
+  const out=[]; let n=0;
+  cols.forEach(c=>{
+    c.items.sort((a,b)=>a.cy-b.cy).forEach(z=>{
+      let best=null;
+      T.forEach(t=>{ if(t===z||used.has(t)||t.cx<=z.cx||Math.abs(t.cy-z.cy)>mh*0.6||t.x0-z.x1>W*0.12) return;
+        if(!/^\d+(?:\.\d+)?$/.test(t.t)||re.test(t.t)) return; if(!best||t.x0<best.x0) best=t; });
+      n++; const o={sr:n,size:z.t}; o[round?'val':'cft']=best?best.t:'?'; out.push(o);
+    });
+  });
+  return out;
+}
+async function ocrRead(data,mime,onTick){
+  const w=await ocrEngine(); ocrTick=onTick||null;
+  let res; try{ res=await w.recognize('data:'+(mime||'image/jpeg')+';base64,'+data) } finally{ ocrTick=null }
+  const words=ocrWords(res.data), W=Math.max(1,...words.filter(x=>x.bbox).map(x=>x.bbox.x1));
+  const rows=ocrToRows(words,W);
+  if(rows.length<3) throw new Error('The free OCR could not find sizes in this photo. It reads clear printed text best. Use a straight, well-lit photo, or ask the developer for an AI key (handwriting).');
+  return JSON.stringify(rows);
+}
 async function visionRead(data,mime,onTick){
+  if(PROVIDER==='tesseract') return ocrRead(data,mime,onTick);
   const key=curKey(), prompt=aiPrompt();
   let url,headers,body;
   if(PROVIDER==='openai'){
@@ -1244,44 +1407,54 @@ function setP(p){
 }
 document.getElementById('go').onclick=async()=>{
   if(!requireActive()) return;
-  const f=file.files[0];
+  if(phBusy) return;
+  if(!PHOTOS.length){st.innerHTML='<span class="err">Please choose a photo first.</span>';return}
+  const todo=PHOTOS.filter(p=>p.state!=='done');
+  if(!todo.length){st.innerHTML='All photos are already read. Add more photos to read them too.';return}
   st.textContent='Checking...'; if(window.__syncApiKey) await window.__syncApiKey();
   if(!curKey()){st.innerHTML='<span class="err">Photo reading is not enabled for this device. Please contact the developer.'+(pasteAllowed()?' You can still use Paste sizes.':'')+'</span>';return}
-  if(!f){st.innerHTML='<span class="err">Please choose a photo first.</span>';return}
-  document.getElementById('prog').hidden=true;
-  st.textContent='Reading sizes...';
-  try{
-    setP(2);
-    let data=cachedB64, mime0=cachedMime;
-    if(!data){
-      try{data=await shrinkToB64(f,2200);mime0='image/jpeg'}
-      catch(x){data=await toBase64(f);mime0=f.type||'image/jpeg'}
+  phBusy=true; const lines=[]; let allSum={s:0,c:0};
+  const prog=document.getElementById('prog'), bar=document.getElementById('progbar');
+  prog.hidden=false;
+  for(let k=0;k<todo.length;k++){
+    const p=todo[k], no=PHOTOS.indexOf(p)+1;
+    p.state='reading'; p.pct=0; renderPhotos();
+    st.innerHTML='Reading photo '+no+' ('+(k+1)+' of '+todo.length+')...'+(lines.length?'<br>'+lines.join('<br>'):'');
+    try{
+      let data=p.b64, mime=p.mime;
+      if(!data){
+        try{data=await shrinkToB64(p.f,2200);mime='image/jpeg'}
+        catch(x){data=await toBase64(p.f);mime=p.f.type||'image/jpeg'}
+        p.b64=data;p.mime=mime;
+      }
+      const ph=(n)=>{p.pct=Math.min(98,Math.round(10+n*0.88)); bar.style.width=Math.round((k+p.pct/100)/todo.length*100)+'%'; const el=document.querySelectorAll('#photos .phs')[PHOTOS.indexOf(p)]; if(el) el.textContent='Reading... '+p.pct+'%'};
+      let txt=await visionRead(data,mime,ph);
+      try{ if(window.__countApiUse) window.__countApiUse() }catch(e){}   // usage count shown to the developer in the key generator
+      txt=txt.replace(/```json|```/g,'').trim();
+      const res=normAi(JSON.parse(txt));
+      const trs=appendRows(res,no), rp=sheetReport(trs);
+      allSum.s+=rp.sSum; allSum.c+=rp.cSum;
+      let m=res.arr.length+' sizes read';
+      if(rp.cmp){ m+=' · sheet check: '+(rp.cmp-rp.bad.length)+' of '+rp.cmp+' match'; if(rp.bad.length) m+=' · <b>check serial '+rp.bad.slice(0,12).join(', ')+(rp.bad.length>12?' ...':'')+'</b>'; }
+      else m+=' · sheet C.F.T. not readable, not cross-checked';
+      if(res.missing.length) m+=' · serial '+res.missing.join(', ')+' unreadable (marked ?)';
+      if(res.arr.length<100) m+=' · fewer than 100 rows';
+      m+=modeHint(res.arr);
+      p.state='done'; p.warn=rp.bad.length>0||res.missing.length>0; p.msg=m;
+      lines.push('Photo '+no+': '+m);
+    }catch(e){
+      const em=(e&&e.message)||''; const net=/failed to fetch|networkerror|load failed/i.test(em);
+      p.state='error';
+      p.msg=net?'Could not reach '+provHost()+'. Check internet, and open this app from your own website/app (GitHub Pages / Median), not from the Claude preview.':esc(em?em:(e&&e.type?'could not read the photo - choose it again':String(e)));
+      lines.push('<span class="err">Photo '+no+': '+p.msg+'</span>');
     }
-    setP(6);
-    const mime=mime0;
-    let txt=await visionRead(data,mime,n=>setP(10+Math.min(88,n*0.88)));
-    try{ if(window.__countApiUse) window.__countApiUse() }catch(e){}   // usage count shown to the developer in the key generator
-    setP(100);
-    txt=txt.replace(/```json|```/g,'').trim();
-    const parsed=JSON.parse(txt);
-    let arr=[], missing=[];
-    if(parsed.length&&typeof parsed[0]==='object'){
-      const m={}; parsed.forEach(x=>{const n=parseInt(x.sr,10); if(n>0&&m[n]===undefined) m[n]=String(x.size)});
-      const last=Math.max(...Object.keys(m).map(Number));
-      for(let i=1;i<=last;i++){ if(m[i]===undefined){arr.push('?');missing.push(i)} else arr.push(m[i]); }
-    } else arr=parsed.map(String);
-    rows.innerHTML='';
-    arr.forEach(s=>addRow(String(s)));
-    update();
-    let msg=arr.length+' sizes found (last serial no. '+arr.length+').';
-    if(missing.length) msg+=' <span class=\"err\">Serial no. '+missing.join(', ')+' could not be read - marked \"?\", please type them from the sheet.</span>';
-    else msg+=' All serial numbers are present.';
-    if(arr.length<100) msg+=' <span class=\"err\">Sheet normally has 100 - check that the photo shows every row.</span>';
-    msg+=' Please correct any marked \"?\" or that look wrong.';
-    st.innerHTML=msg;
-    setTimeout(()=>{document.getElementById('prog').hidden=true},800);
-  }catch(e){document.getElementById('prog').hidden=true;const em=(e&&e.message)||''; const net=/failed to fetch|networkerror|load failed/i.test(em);
-  st.innerHTML='<span class="err">Error: '+(net?'Could not reach '+provHost()+'. Check internet, and open this app from your own website/app (GitHub Pages / Median), not from the Claude preview.':esc(em?em:(e&&e.type?'could not read the photo - choose it again':String(e))))+'</span>'}
+    renderPhotos();
+  }
+  phBusy=false; bar.style.width='100%'; setTimeout(()=>{prog.hidden=true},800);
+  let tail='';
+  if(allSum.s>0){ const dif=Math.abs(allSum.s-allSum.c); tail='<br>C.F.T. total: sheet '+allSum.s.toFixed(2)+' / calculated '+allSum.c.toFixed(2)+(dif>0.05?' <span class="err">(differs by '+dif.toFixed(2)+')</span>':' (matches)'); }
+  st.innerHTML=lines.join('<br>')+tail+'<br>Orange rows differ from the sheet and red "?" rows could not be read. Please correct them.';
+  update();
 };
 
 
@@ -1847,8 +2020,8 @@ function modeName(m){return m==='round'?'Round log (CBM)':m==='fix'?'Fixed size 
 function modeShort(m){return m==='round'?'round log':m==='fix'?'fixed size':'sawn timber'}
 
 // ---------- Sheet type (sawn timber / round log / fixed size) ----------
-const SAWN_PROMPT='This is a wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Read the SR. NO. and the SIZE for every row, for example 7x7-76 or 6x5-73. Ignore the C.F.T. column. Do not skip any serial number: include every row up to the last one that has a size. Return only a JSON array like [{"sr":1,"size":"7x7-76"},{"sr":2,"size":"7x5-76"}] and nothing else. If a size cannot be read, use "?" as the size.';
-const ROUND_PROMPT='This is a round wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Each row has a Length and a Girth. Read the SR. NO., the Length and the Girth of every row and write the size as Length x Girth, for example 25x45 or 205x41 (copy the digits exactly as written, do not add decimals). Ignore the CFT/CBM column. Do not skip any serial number: include every row up to the last one that has values. Return only a JSON array like [{"sr":1,"size":"25x45"},{"sr":2,"size":"25x38"}] and nothing else. If a value cannot be read, use "?" as the size.';
+const SAWN_PROMPT='This is a wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. For every row read three things: the SR. NO., the SIZE (for example 7x7-76 or 6x5-73) and the C.F.T. number printed in that row (copy it exactly as written, for example 255 or 156). Do not skip any serial number: include every row up to the last one that has a size. Return only a JSON array like [{"sr":1,"size":"7x7-76","cft":"255"},{"sr":2,"size":"7x5-76","cft":"182"}] and nothing else. If the size cannot be read use "?" as the size, and if the C.F.T. cannot be read use "?" as the cft.';
+const ROUND_PROMPT='This is a round wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Each row has a Length, a Girth and a CFT/CBM value. For every row read the SR. NO., the Length and the Girth (write the size as Length x Girth, for example 25x45 or 205x41, copy the digits exactly as written, do not add decimals) and the value printed in the last column of that row (copy it exactly as written). Do not skip any serial number: include every row up to the last one that has values. Return only a JSON array like [{"sr":1,"size":"25x45","val":"0.321"},{"sr":2,"size":"25x38","val":"0.230"}] and nothing else. If a value cannot be read use "?" for it.';
 function aiPrompt(){return MODE==='round'?ROUND_PROMPT:SAWN_PROMPT}
 function applyMode(){
   const r=MODE==='round';
@@ -2131,7 +2304,7 @@ document.getElementById('key').addEventListener('input',()=>{
 });
 // ---------- AI provider (Anthropic / OpenAI) ----------
 const PROVKEY='logcft_provider_v1', OKEYSTORE='logcft_okey_v1', OMODELKEY='logcft_omodel_v1';
-let PROVIDER='openai'; try{ const pv=localStorage.getItem(PROVKEY); if(pv==='anthropic'||pv==='gemini'||pv==='sarvam') PROVIDER=pv; }catch(e){}
+let PROVIDER='openai'; try{ const pv=localStorage.getItem(PROVKEY); if(pv==='anthropic'||pv==='gemini'||pv==='sarvam'||pv==='tesseract') PROVIDER=pv; }catch(e){}
 function applyProvider(){
   document.getElementById('prov').value=PROVIDER;
   document.getElementById('box-anthropic').hidden=PROVIDER!=='anthropic';
@@ -2140,7 +2313,7 @@ function applyProvider(){
   document.getElementById('box-sarvam').hidden=PROVIDER!=='sarvam';
 }
 document.getElementById('prov').onchange=e=>{
-  PROVIDER=['openai','gemini','sarvam'].indexOf(e.target.value)>-1?e.target.value:'anthropic';
+  PROVIDER=['openai','gemini','sarvam','tesseract'].indexOf(e.target.value)>-1?e.target.value:'anthropic';
   try{localStorage.setItem(PROVKEY,PROVIDER)}catch(x){}
   applyProvider();
 };
@@ -2178,8 +2351,8 @@ window.__applyManagedKey=function(m){
   ['key','okey','gkey','skey'].forEach(function(id){document.getElementById(id).value=''});
   document.getElementById('omodel').value='gpt-4o'; document.getElementById('gmodel').value='gemini-3.8-flash'; document.getElementById('smodel').value='gemma4';
   if(m&&m.key){
-    PROVIDER=(m.prov==='openai'||m.prov==='gemini'||m.prov==='sarvam')?m.prov:'anthropic';
-    document.getElementById(PROVIDER==='openai'?'okey':PROVIDER==='gemini'?'gkey':PROVIDER==='sarvam'?'skey':'key').value=m.key;
+    PROVIDER=(m.prov==='openai'||m.prov==='gemini'||m.prov==='sarvam'||m.prov==='tesseract')?m.prov:'anthropic';
+    if(PROVIDER!=='tesseract') document.getElementById(PROVIDER==='openai'?'okey':PROVIDER==='gemini'?'gkey':PROVIDER==='sarvam'?'skey':'key').value=m.key;
     if(m.model){ if(PROVIDER==='openai') document.getElementById('omodel').value=m.model; else if(PROVIDER==='gemini') document.getElementById('gmodel').value=m.model; else if(PROVIDER==='sarvam') document.getElementById('smodel').value=m.model; }
     try{localStorage.setItem(MKEY,JSON.stringify(m))}catch(e){}
   }else{ try{localStorage.removeItem(MKEY)}catch(e){} }
@@ -2216,31 +2389,27 @@ function parsePasted(txt){
   if(a>-1&&b>a){
     try{
       const parsed=JSON.parse(t.slice(a,b+1));
-      if(parsed.length&&typeof parsed[0]==='object'){
-        const m={}; parsed.forEach(x=>{const n=parseInt(x.sr,10); if(n>0&&m[n]===undefined) m[n]=String(x.size)});
-        const keys=Object.keys(m).map(Number);
-        if(keys.length){
-          const last=Math.max(...keys), arr=[], missing=[];
-          for(let i=1;i<=last;i++){ if(m[i]===undefined){arr.push('?');missing.push(i)} else arr.push(m[i]); }
-          return {arr:arr,missing:missing};
-        }
-      } else if(parsed.length) return {arr:parsed.map(String),missing:[]};
+      if(parsed.length){ const r=normAi(parsed); if(r.arr.length) return r; }
     }catch(e){}
   }
-  // plain text fallback: pick out every size in order
-  const re=MODE==='round'?/\d+(?:\.\d+)?\s*[x×*]\s*\d+(?:\.\d+)?/gi:/\d+(?:\.\d+)?\s*[x×*]\s*\d+(?:\.\d+)?\s*[-–—]\s*\d{2}/gi;
-  const found=(t.match(re)||[]).map(s=>s.replace(/\s+/g,'').replace(/[×*]/g,'x').replace(/[–—]/g,'-'));
-  return {arr:found,missing:[]};
+  // plain text fallback: every size in order, with the number printed after it (the sheet's C.F.T.) when there is one
+  const core=MODE==='round'?'\\d+(?:\\.\\d+)?\\s*[x×*]\\s*\\d+(?:\\.\\d+)?':'\\d+(?:\\.\\d+)?\\s*[x×*]\\s*\\d+(?:\\.\\d+)?\\s*[-–—]\\s*\\d{2}';
+  const re=new RegExp('('+core+')(?:[\\s,:=|]+(\\d{2,4}(?:\\.\\d+)?)(?![\\d.x×*\\-–—]))?','gi');
+  const out={arr:[],sc:[],sr:[],missing:[]}; let m;
+  while((m=re.exec(t))){ out.arr.push(m[1].replace(/\s+/g,'').replace(/[×*]/g,'x').replace(/[–—]/g,'-')); out.sc.push(m[2]||''); out.sr.push(out.arr.length); }
+  return out;
 }
 document.getElementById('pp-go').onclick=()=>{
   const m=document.getElementById('pp-msg');
   if(!pasteAllowed()){m.innerHTML=PASTE_OFF_MSG;return}
   const r=parsePasted(document.getElementById('pp-text').value);
   if(!r.arr.length){m.innerHTML='<span class="err">No sizes found in the pasted text.</span>';return}
-  rows.innerHTML=''; r.arr.forEach(s=>addRow(esc(String(s)))); update();
+  rows.innerHTML=''; const trs=appendRows(r,0);
   let msg=r.arr.length+' sizes imported.';
+  const rp=sheetReport(trs);
+  if(rp.cmp){ msg+=' Sheet check: '+(rp.cmp-rp.bad.length)+' of '+rp.cmp+' match'+(rp.bad.length?' - <b>check serial '+rp.bad.slice(0,12).join(', ')+(rp.bad.length>12?' ...':'')+'</b> (orange)':'')+'.'; }
   if(r.missing.length) msg+=' <span class="err">Serial no. '+r.missing.join(', ')+' missing - marked "?", please type them from the sheet.</span>';
-  msg+=' Please check any that look wrong.';
+  msg+=modeHint(r.arr)+' Please check any that look wrong.';
   st.innerHTML=msg;
   document.getElementById('prog').hidden=true;
   document.getElementById('dlg-paste').close();
