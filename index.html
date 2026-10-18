@@ -652,6 +652,7 @@ html.locked body{overflow:hidden}
       <option value="openai">OpenAI (GPT)</option>
       <option value="gemini">Google (Gemini - free key)</option>
       <option value="sarvam">Sarvam AI</option>
+      <option value="groq">Groq AI</option>
       <option value="tesseract">Tesseract OCR (free)</option>
     </select>
     <div id="box-anthropic" style="margin-top:8px">
@@ -675,6 +676,12 @@ html.locked body{overflow:hidden}
       <input id="skey" type="password" autocomplete="off" placeholder="sk_...">
       <label for="smodel" style="margin-top:8px">Sarvam model</label>
       <input id="smodel" type="text" autocomplete="off" value="gemma4" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
+    </div>
+    <div id="box-groq" style="margin-top:8px" hidden>
+      <label for="grkey">Groq API key</label>
+      <input id="grkey" type="password" autocomplete="off" placeholder="gsk_...">
+      <label for="grmodel" style="margin-top:8px">Groq model</label>
+      <input id="grmodel" type="text" autocomplete="off" value="qwen/qwen3.8-27b" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff">
     </div>
     <label style="margin-top:8px"><input type="checkbox" id="remember"> Remember key on this device</label>
   </div>
@@ -1300,9 +1307,9 @@ function shrinkToB64(f,maxSide){
 function toBase64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('The photo could not be read. Tap "Choose file" and select the photo again.'));r.readAsDataURL(f)})}
 
 
-function curKey(){return PROVIDER==='tesseract'?'ocr':PROVIDER==='openai'?document.getElementById('okey').value.trim():PROVIDER==='gemini'?document.getElementById('gkey').value.trim():PROVIDER==='sarvam'?document.getElementById('skey').value.trim():document.getElementById('key').value.trim()}
-function provName(){return PROVIDER==='tesseract'?'Tesseract OCR (free)':PROVIDER==='openai'?'OpenAI':PROVIDER==='gemini'?'Google Gemini':PROVIDER==='sarvam'?'Sarvam AI':'Anthropic'}
-function provHost(){return PROVIDER==='tesseract'?'cdn.jsdelivr.net':PROVIDER==='openai'?'api.openai.com':PROVIDER==='gemini'?'generativelanguage.googleapis.com':PROVIDER==='sarvam'?'api.sarvam.ai':'api.anthropic.com'}
+function curKey(){return PROVIDER==='tesseract'?'ocr':PROVIDER==='groq'?document.getElementById('grkey').value.trim():PROVIDER==='openai'?document.getElementById('okey').value.trim():PROVIDER==='gemini'?document.getElementById('gkey').value.trim():PROVIDER==='sarvam'?document.getElementById('skey').value.trim():document.getElementById('key').value.trim()}
+function provName(){return PROVIDER==='tesseract'?'Tesseract OCR (free)':PROVIDER==='groq'?'Groq AI':PROVIDER==='openai'?'OpenAI':PROVIDER==='gemini'?'Google Gemini':PROVIDER==='sarvam'?'Sarvam AI':'Anthropic'}
+function provHost(){return PROVIDER==='tesseract'?'cdn.jsdelivr.net':PROVIDER==='groq'?'api.groq.com':PROVIDER==='openai'?'api.openai.com':PROVIDER==='gemini'?'generativelanguage.googleapis.com':PROVIDER==='sarvam'?'api.sarvam.ai':'api.anthropic.com'}
 // Sends the sheet photo to the chosen provider, streams the answer, returns the full text.
 // ---------- Tesseract OCR: free, runs on this phone, no API key ----------
 const TESS_URL='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', TESS_LANG='https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int';
@@ -1364,6 +1371,11 @@ async function visionRead(data,mime,onTick){
     headers={'Content-Type':'application/json','Authorization':'Bearer '+key};
     body={model:(document.getElementById('omodel').value.trim()||'gpt-4o'),max_completion_tokens:4000,stream:true,
       messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}]}]};
+  }else if(PROVIDER==='groq'){
+    url='https://api.groq.com/openai/v1/chat/completions';
+    headers={'Content-Type':'application/json','Authorization':'Bearer '+key};
+    body={model:(document.getElementById('grmodel').value.trim()||'qwen/qwen3.8-27b'),max_completion_tokens:8000,stream:true,
+      messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:'data:'+mime+';base64,'+data}}]}]};
   }else if(PROVIDER==='sarvam'){
     url='https://api.sarvam.ai/v2/chat/completions';
     headers={'Content-Type':'application/json','api-subscription-key':key};
@@ -1394,7 +1406,7 @@ async function visionRead(data,mime,onTick){
       const pl=ln.slice(5).trim(); if(!pl||pl==='[DONE]') continue;
       let ev; try{ev=JSON.parse(pl)}catch(x){continue}
       if(ev.error) throw new Error(ev.error.message||'stream error');
-      if(PROVIDER==='openai'||PROVIDER==='sarvam'){const dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta; if(dl&&dl.content) txt+=dl.content;}
+      if(PROVIDER==='openai'||PROVIDER==='sarvam'||PROVIDER==='groq'){const dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta; if(dl&&dl.content) txt+=dl.content;}
       else if(PROVIDER==='gemini'){const ps=ev.candidates&&ev.candidates[0]&&ev.candidates[0].content&&ev.candidates[0].content.parts; if(ps) ps.forEach(q=>{if(q.text) txt+=q.text});}
       else{ if(ev.type==='content_block_delta'&&ev.delta&&ev.delta.text) txt+=ev.delta.text; else if(ev.type==='error') throw new Error((ev.error&&ev.error.message)||'stream error'); }
     }
@@ -1433,7 +1445,8 @@ document.getElementById('go').onclick=async()=>{
       const ph=(n)=>{p.pct=Math.min(98,Math.round(10+n*0.88)); bar.style.width=Math.round((k+p.pct/100)/todo.length*100)+'%'; const el=document.querySelectorAll('#photos .phs')[PHOTOS.indexOf(p)]; if(el) el.textContent='Reading... '+p.pct+'%'};
       let txt=await visionRead(data,mime,ph);
       try{ if(window.__countApiUse) window.__countApiUse() }catch(e){}   // usage count shown to the developer in the key generator
-      txt=txt.replace(/```json|```/g,'').trim();
+      txt=txt.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/```json|```/g,'').trim();
+      { const a=txt.indexOf('['), b=txt.lastIndexOf(']'); if(a>-1&&b>a) txt=txt.slice(a,b+1); }
       const res=normAi(JSON.parse(txt));
       const trs=appendRows(res,no), rp=sheetReport(trs);
       allSum.s+=rp.sSum; allSum.c+=rp.cSum;
@@ -2307,16 +2320,17 @@ document.getElementById('key').addEventListener('input',()=>{
 });
 // ---------- AI provider (Anthropic / OpenAI) ----------
 const PROVKEY='logcft_provider_v1', OKEYSTORE='logcft_okey_v1', OMODELKEY='logcft_omodel_v1';
-let PROVIDER='openai'; try{ const pv=localStorage.getItem(PROVKEY); if(pv==='anthropic'||pv==='gemini'||pv==='sarvam'||pv==='tesseract') PROVIDER=pv; }catch(e){}
+let PROVIDER='openai'; try{ const pv=localStorage.getItem(PROVKEY); if(pv==='anthropic'||pv==='gemini'||pv==='sarvam'||pv==='groq'||pv==='tesseract') PROVIDER=pv; }catch(e){}
 function applyProvider(){
   document.getElementById('prov').value=PROVIDER;
   document.getElementById('box-anthropic').hidden=PROVIDER!=='anthropic';
   document.getElementById('box-openai').hidden=PROVIDER!=='openai';
   document.getElementById('box-gemini').hidden=PROVIDER!=='gemini';
   document.getElementById('box-sarvam').hidden=PROVIDER!=='sarvam';
+  document.getElementById('box-groq').hidden=PROVIDER!=='groq';
 }
 document.getElementById('prov').onchange=e=>{
-  PROVIDER=['openai','gemini','sarvam','tesseract'].indexOf(e.target.value)>-1?e.target.value:'anthropic';
+  PROVIDER=['openai','gemini','sarvam','groq','tesseract'].indexOf(e.target.value)>-1?e.target.value:'anthropic';
   try{localStorage.setItem(PROVKEY,PROVIDER)}catch(x){}
   applyProvider();
 };
@@ -2351,12 +2365,12 @@ document.getElementById('remember').addEventListener('change',e=>{
 const MKEY='logcft_mkey_v1';
 window.__applyManagedKey=function(m){
   try{localStorage.removeItem(KEYSTORE);localStorage.removeItem(OKEYSTORE);localStorage.removeItem(GKEYSTORE)}catch(e){}
-  ['key','okey','gkey','skey'].forEach(function(id){document.getElementById(id).value=''});
-  document.getElementById('omodel').value='gpt-4o'; document.getElementById('gmodel').value='gemini-3.8-flash'; document.getElementById('smodel').value='gemma4';
+  ['key','okey','gkey','skey','grkey'].forEach(function(id){document.getElementById(id).value=''});
+  document.getElementById('omodel').value='gpt-4o'; document.getElementById('gmodel').value='gemini-3.8-flash'; document.getElementById('smodel').value='gemma4'; document.getElementById('grmodel').value='qwen/qwen3.8-27b';
   if(m&&m.key){
-    PROVIDER=(m.prov==='openai'||m.prov==='gemini'||m.prov==='sarvam'||m.prov==='tesseract')?m.prov:'anthropic';
-    if(PROVIDER!=='tesseract') document.getElementById(PROVIDER==='openai'?'okey':PROVIDER==='gemini'?'gkey':PROVIDER==='sarvam'?'skey':'key').value=m.key;
-    if(m.model){ if(PROVIDER==='openai') document.getElementById('omodel').value=m.model; else if(PROVIDER==='gemini') document.getElementById('gmodel').value=m.model; else if(PROVIDER==='sarvam') document.getElementById('smodel').value=m.model; }
+    PROVIDER=(m.prov==='openai'||m.prov==='gemini'||m.prov==='sarvam'||m.prov==='groq'||m.prov==='tesseract')?m.prov:'anthropic';
+    if(PROVIDER!=='tesseract') document.getElementById(PROVIDER==='openai'?'okey':PROVIDER==='gemini'?'gkey':PROVIDER==='sarvam'?'skey':PROVIDER==='groq'?'grkey':'key').value=m.key;
+    if(m.model){ if(PROVIDER==='openai') document.getElementById('omodel').value=m.model; else if(PROVIDER==='gemini') document.getElementById('gmodel').value=m.model; else if(PROVIDER==='sarvam') document.getElementById('smodel').value=m.model; else if(PROVIDER==='groq') document.getElementById('grmodel').value=m.model; }
     try{localStorage.setItem(MKEY,JSON.stringify(m))}catch(e){}
   }else{ try{localStorage.removeItem(MKEY)}catch(e){} }
   applyProvider();
