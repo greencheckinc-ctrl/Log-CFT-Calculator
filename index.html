@@ -1460,12 +1460,22 @@ document.getElementById('go').onclick=async()=>{
     try{
       let data=p.b64, mime=p.mime;
       if(!data){
-        try{data=await shrinkToB64(p.f,2200);mime='image/jpeg'}
+        try{data=await shrinkToB64(p.f,3200);mime='image/jpeg'}
         catch(x){data=await toBase64(p.f);mime=p.f.type||'image/jpeg'}
         p.b64=data;p.mime=mime;
       }
       const ph=(n)=>{p.pct=Math.min(98,Math.round(10+n*0.88)); bar.style.width=Math.round((k+p.pct/100)/todo.length*100)+'%'; const el=document.querySelectorAll('#photos .phs')[PHOTOS.indexOf(p)]; if(el) el.textContent='Reading... '+p.pct+'%'};
-      let txt=await visionRead(data,mime,ph);
+      const BL=[[1,25],[26,50],[51,75],[76,100]]; let all=[];
+      try{
+        for(let bi=0;bi<BL.length;bi++){
+          BLOCK=BL[bi];
+          let t=await visionRead(data,mime,(n)=>ph(bi*25+Math.min(n,25)));
+          t=t.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/```json|```/g,'').trim();
+          const a0=t.indexOf('['), b0=t.lastIndexOf(']');
+          if(a0>-1&&b0>a0){ try{ JSON.parse(t.slice(a0,b0+1)).forEach(x=>{const n=parseInt(x.sr,10); if(n>=BL[bi][0]&&n<=BL[bi][1]) all.push(x)}) }catch(e){ throw new Error('Block '+BL[bi][0]+'-'+BL[bi][1]+' could not be read, try again') } }
+        }
+      } finally { BLOCK=null }
+      let txt=JSON.stringify(all);
       try{ if(window.__countApiUse) window.__countApiUse() }catch(e){}   // usage count shown to the developer in the key generator
       txt=txt.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/```json|```/g,'').trim();
       { const a=txt.indexOf('['), b=txt.lastIndexOf(']'); if(a>-1&&b>a) txt=txt.slice(a,b+1); }
@@ -2060,7 +2070,13 @@ function modeShort(m){return m==='round'?'round log':m==='fix'?'fixed size':'saw
 // ---------- Sheet type (sawn timber / round log / fixed size) ----------
 const SAWN_PROMPT='This is a wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. For every row read three things: the SR. NO., the SIZE (for example 7x7-76 or 6x5-73) and the C.F.T. number printed in that row (copy it exactly as written, for example 255 or 156). Do not skip any serial number: include every row up to the last one that has a size. Return only a JSON array like [{"sr":1,"size":"7x7-76","cft":"255"},{"sr":2,"size":"7x5-76","cft":"182"}] and nothing else. If the size cannot be read use "?" as the size, and if the C.F.T. cannot be read use "?" as the cft.';
 const ROUND_PROMPT='This is a round wood log measurement sheet with serial numbers (SR. NO.) 1 to 100 in four column blocks. Each row has a Length, a Girth and a CFT/CBM value. For every row read the SR. NO., the Length and the Girth (write the size as Length x Girth, for example 25x45 or 205x41, copy the digits exactly as written, do not add decimals) and the value printed in the last column of that row (copy it exactly as written). Do not skip any serial number: include every row up to the last one that has values. Return only a JSON array like [{"sr":1,"size":"25x45","val":"0.321"},{"sr":2,"size":"25x38","val":"0.230"}] and nothing else. If a value cannot be read use "?" for it.';
-function aiPrompt(){return MODE==='round'?ROUND_PROMPT:SAWN_PROMPT}
+let BLOCK=null;
+const HAND_HINT=' Read slowly, one row at a time, left to right, using the ruled lines to stay on the correct row (the photo may be tilted). The handwriting is Indian style: a 4 is often written like the letter u, a 7 like J or a backwards 2, a 9 like q, a 5 like S, a 1 like I or a plain stroke, and a 0 like a small o. In round-log sheets the Length is usually 60 (sometimes 50, 55, 70, 75, 100 or 200) and the Girth is a 2-digit number between 20 and 99; use this to decide between look-alike digits, but never invent a value you cannot see.';
+function aiPrompt(){
+  const base=MODE==='round'?ROUND_PROMPT:SAWN_PROMPT;
+  if(!BLOCK) return base+HAND_HINT;
+  return base+' IMPORTANT: this time read ONLY serial numbers '+BLOCK[0]+' to '+BLOCK[1]+' (one column block, '+(BLOCK[1]-BLOCK[0]+1)+' rows). Ignore all other blocks.'+HAND_HINT;
+}
 function applyMode(){
   const r=MODE==='round';
   try{grRender()}catch(e){}
