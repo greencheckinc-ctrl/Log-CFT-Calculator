@@ -897,7 +897,15 @@ function addRow(size='',after=null){
   const inp=tr.querySelector('input');
   inp.addEventListener('input',update);
   inp.addEventListener('blur',()=>{inp.value=normalize(inp.value);update()});
+  inp.addEventListener('focus',()=>{inp._wasRed=tr.classList.contains('bad')||tr.classList.contains('xbad')});
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.value=normalize(inp.value);update();
+    if(inp._wasRed){   // was a red (wrong) row: go straight to the next red row
+      const reds=[...rows.querySelectorAll('tr.bad,tr.xbad')].filter(r=>r!==tr);
+      if(reds.length){
+        const nx=reds.find(r=>tr.compareDocumentPosition(r)&Node.DOCUMENT_POSITION_FOLLOWING)||reds[0];
+        const ni=nx.querySelector('input'); ni.focus(); ni.select(); ni.scrollIntoView({block:'center',behavior:'smooth'}); return;
+      }
+    }
     let n=tr.nextElementSibling; if(!n){addRow();update();n=tr.nextElementSibling} n.querySelector('input').focus();}});
   tr.querySelector('.del').addEventListener('click',()=>{tr.remove();update()});
   tr.querySelector('.plus').addEventListener('click',()=>{const n=addRow('',tr);update();n.querySelector('input').focus()});
@@ -2498,6 +2506,8 @@ phRestore(getCurrent()).then(()=>phCloudSoon());
     armed=false;
     const dlg=[...document.querySelectorAll('dialog[open]')].pop();
     if(dlg){ try{dlg.close()}catch(e){} arm(); document.addEventListener('pointerdown',arm,{once:true}); return }
+    const kpEl=document.getElementById('kp');
+    if(kpEl&&!kpEl.hidden){ const hb=document.getElementById('kp-hide'); if(hb) hb.dispatchEvent(new Event('pointerdown',{cancelable:true})); arm(); document.addEventListener('pointerdown',arm,{once:true}); return }
     const now=Date.now();
     if(now-last<2500) return;                 // second quick back: let the app close
     last=now; arm(); document.addEventListener('pointerdown',arm,{once:true});
