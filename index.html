@@ -905,17 +905,23 @@ function addRow(size='',after=null){
   return tr;
 }
 const STORE='logcft_rows_v1', KEYSTORE='logcft_key_v1';
+// per-row info from the photo (sheet value, serial, photo no.) - kept so the red "does not match the sheet" marks survive closing the app
+function metaOf(tr){return [tr.dataset.sc||'',tr.dataset.sr||'',tr.dataset.ph||''].map(x=>String(x).replace(/\|/g,'')).join('|')}
+function applyMeta(tr,m){const a=String(m||'').split('|'); if(a[0]) tr.dataset.sc=a[0]; if(a[1]) tr.dataset.sr=a[1]; if(a[2]) tr.dataset.ph=a[2]}
+function rowMetaList(){return [...rows.querySelectorAll('tr')].filter(tr=>tr.querySelector('input').value.trim()).map(metaOf)}
 function save(){
   try{
     const vals=[...rows.querySelectorAll('input')].map(i=>i.value);
     localStorage.setItem(STORE,JSON.stringify(vals));
+    localStorage.setItem(STORE+'_m',JSON.stringify([...rows.querySelectorAll('tr')].map(metaOf)));
     const el=document.getElementById('saved'); if(el) el.textContent='Auto-saved on this device';
   }catch(e){}
 }
 function load(){
   try{
     const v=JSON.parse(localStorage.getItem(STORE)||'[]');
-    v.forEach(x=>addRow(String(x)));
+    const mm=JSON.parse(localStorage.getItem(STORE+'_m')||'[]');
+    v.forEach((x,i)=>{const tr=addRow(String(x)); if(mm[i]) applyMeta(tr,mm[i])});
   }catch(e){}
 }
 // "By length" / "By first number" table: tap a header to sort (tap again = reverse)
@@ -1278,14 +1284,140 @@ function modeHint(arr){
 }
 
 // ---------- Sheet photos: add many, read them all, everything on this page ----------
-const PHOTOS=[]; let phSeq=0, phBusy=false;
+const PHOTOS=[]; let phSeq=0, phBusy=false, phReady=false, phT=null;
+const PHDB={
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open('logcft_photos_v1',1); r.onupgradeneeded=()=>r.result.createObjectStore('p'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error)})},
+  async put(k,v){const d=await this.open(); return new Promise((res,rej)=>{const t=d.transaction('p','readwrite'); t.objectStore('p').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error)})},
+  async get(k){const d=await this.open(); return new Promise((res,rej)=>{const q=d.transaction('p','readonly').objectStore('p').get(k); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error)})},
+  async del(k){const d=await this.open(); return new Promise((res,rej)=>{const t=d.transaction('p','readwrite'); t.objectStore('p').delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error)})}
+};
+function b64ToBlob(b){const bin=atob(b),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:'image/jpeg'})}
+function phSaveSoon(){ clearTimeout(phT); phT=setTimeout(()=>{phSave()},1200) }
+async function phSave(noCloud){
+  clearTimeout(phT);
+  const n=getCurrent(); if(!n||!phReady) return;
+  if(!noCloud) phCloudSoon();
+  try{
+    if(!PHOTOS.length){ await PHDB.del(n); return }
+    const arr=PHOTOS.map(p=>({blob:p.f,key:p.key,cs:p.cs||'',ci:!!p.ci,state:p.state==='reading'?'new':p.state,msg:p.msg||'',warn:!!p.warn}));
+    try{ await PHDB.put(n,arr) }
+    catch(e){ arr.forEach((a,i)=>{ if(PHOTOS[i].b64) a.blob=b64ToBlob(PHOTOS[i].b64) }); await PHDB.put(n,arr) }
+  }catch(e){}
+}
+function phClear(){ PHOTOS.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch(e){}}); PHOTOS.length=0; renderPhotos() }
+async function phRestore(n){
+  PHOTOS.forEach(p=>{try{URL.revokeObjectURL(p.url)}catch(e){}}); PHOTOS.length=0;
+  phReady=false;
+  try{
+    let arr=n?(await PHDB.get(n)||[]):[];
+    if(n&&!arr.length) arr=await phCloudPull(n);
+    arr.forEach(a=>{
+      const p={id:++phSeq,key:a.key||phNewKey(),cs:a.cs||'',ci:!!a.ci,f:a.blob,url:URL.createObjectURL(a.blob),state:(a.state==='done'||a.state==='error')?a.state:'new',msg:a.msg||'',warn:!!a.warn,b64:null,mime:'image/jpeg'};
+      PHOTOS.push(p);
+      shrinkToB64(a.blob,2200).then(d=>{p.b64=d}).catch(()=>{});
+    });
+  }catch(e){}
+  renderPhotos(); phReady=true;
+  if(PHOTOS.length){const l=PHOTOS[PHOTOS.length-1]; prev.src=l.url; prev.hidden=false}
+}
+// ---------- Photos in Firebase: each photo is shrunk to <= 100 KB (stored as base64 text) at logcftph/<id>/<file>/<photo> ----------
+const PHMAX=100000, PHDELKEY='logcft_phdel_v1';
+function phNewKey(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function phQ(){try{return JSON.parse(localStorage.getItem(PHDELKEY)||'[]')}catch(e){return []}}
+function phQSet(a){try{if(a.length) localStorage.setItem(PHDELKEY,JSON.stringify(a)); else localStorage.removeItem(PHDELKEY)}catch(e){}}
+function phQueueDel(p){ const n=getCurrent(); if(!n||!p||!p.key) return; const q=phQ(); q.push({n:n,key:p.key}); phQSet(q); phCloudSoon() }
+function phQueueDelFile(n){ if(!n) return; const q=phQ(); q.push({n:n,key:null}); phQSet(q); phCloudSoon() }
+function phUrl(n,key){
+  const c=getFb(); if(!c||!c.on||!c.url||!c.id) return null;
+  return c.url.trim().replace(/\/+$/,'')+'/logcftph/'+encodeURIComponent(c.id)+'/'+fbKey(n)+(key?'/'+key:'')+'.json'+(c.auth?'?auth='+encodeURIComponent(c.auth):'');
+}
+function phSmall(blob){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(blob), img=new Image();
+    img.onload=()=>{
+      try{
+        let side=1400,q=0.7,out='';
+        for(let k=0;k<14;k++){
+          const sc=Math.min(1,side/Math.max(img.naturalWidth,img.naturalHeight)), w=Math.round(img.naturalWidth*sc), h=Math.round(img.naturalHeight*sc);
+          const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+          cv.getContext('2d').drawImage(img,0,0,w,h);
+          out=cv.toDataURL('image/jpeg',q).split(',')[1];
+          if(out.length<=PHMAX) break;
+          if(q>0.45) q-=0.1; else side*=0.85;
+        }
+        URL.revokeObjectURL(url); out.length<=PHMAX?res(out):rej(new Error('photo too big'));
+      }catch(e){URL.revokeObjectURL(url);rej(e)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('photo unreadable'))};
+    img.src=url;
+  });
+}
+let phCT=null, phCloudBusy=false;
+function phCloudSoon(){ clearTimeout(phCT); phCT=setTimeout(phCloudPush,3000) }
+function phSig(p,i){return i+'|'+(p.state==='reading'?'new':p.state)+'|'+(p.msg||'')+'|'+(p.warn?1:0)}
+async function phCloudPush(){
+  if(phCloudBusy||!phUrl('x')) return; phCloudBusy=true;
+  try{
+    // 1) removals first (photo removed with X, or whole file deleted)
+    const rest=[];
+    for(const it of phQ()){ try{ const r=await fetch(phUrl(it.n,it.key),{method:'DELETE'}); if(!r.ok) throw 0 }catch(e){ rest.push(it) } }
+    phQSet(rest);
+    // 2) new / changed photos of the open file
+    const n=getCurrent(); let changed=false;
+    if(n&&phReady){
+      for(let i=0;i<PHOTOS.length;i++){
+        const p=PHOTOS[i]; if(!p.key) p.key=phNewKey();
+        const sig=phSig(p,i); if(p.ci&&p.cs===sig) continue;
+        const meta={i:i,s:(p.state==='reading'?'new':p.state),m:p.msg||'',w:p.warn?1:0,t:Date.now()};
+        let r;
+        if(p.ci) r=await fetch(phUrl(n,p.key),{method:'PATCH',body:JSON.stringify(meta)});
+        else{
+          let d; try{ d=await phSmall(p.f) }catch(e){ if(!p.b64) throw e; d=await phSmall(b64ToBlob(p.b64)) }
+          r=await fetch(phUrl(n,p.key),{method:'PUT',body:JSON.stringify(Object.assign({d:d},meta))});
+        }
+        if(!r.ok) throw new Error('Photos not uploaded: Server said '+r.status+(r.status===401||r.status===403?' (add the "logcftph" rule to the Firebase database rules)':''));
+        p.ci=true; p.cs=sig; changed=true;
+      }
+    }
+    // 3) photos removed (X) on another device: remove them here too
+    if(n&&phReady&&!phQ().length){
+      const lr=await fetch(phUrl(n)+(phUrl(n).indexOf('?')>-1?'&':'?')+'shallow=true');
+      if(lr.ok){
+        const keys=await lr.json();
+        if(keys&&typeof keys==='object'){
+          for(let i=PHOTOS.length-1;i>=0;i--){
+            const p=PHOTOS[i];
+            if(p.ci&&p.key&&!(p.key in keys)){ try{URL.revokeObjectURL(p.url)}catch(e){} PHOTOS.splice(i,1); changed=true }
+          }
+          if(changed) renderPhotos();
+        }
+      }
+    }
+    if(changed) phSave(true);
+  }catch(e){ try{ fmsg.textContent=String((e&&e.message)||e) }catch(x){} }
+  finally{ phCloudBusy=false; if(phQ().length) phCloudSoon() }
+}
+async function phCloudPull(n){
+  const u=phUrl(n); if(!u) return [];
+  try{
+    const r=await fetch(u); if(!r.ok) return [];
+    const o=await r.json(); if(!o) return [];
+    const pq=phQ(); if(pq.some(it=>it.n===n&&!it.key)) return [];
+    const gone=new Set(pq.filter(it=>it.n===n&&it.key).map(it=>it.key));
+    const list=Object.keys(o).map(k=>({k:k,v:o[k]})).filter(x=>x.v&&x.v.d&&!gone.has(x.k)).sort((a,b)=>(a.v.i||0)-(b.v.i||0));
+    const arr=list.map((x,i)=>({blob:b64ToBlob(x.v.d),key:x.k,state:x.v.s||'new',msg:x.v.m||'',warn:!!x.v.w,ci:true,cs:i+'|'+(x.v.s||'new')+'|'+(x.v.m||'')+'|'+(x.v.w?1:0)}));
+    if(arr.length) try{ await PHDB.put(n,arr) }catch(e){}
+    return arr;
+  }catch(e){ return [] }
+}
 function addPhoto(f){
-  const p={id:++phSeq,f:f,url:URL.createObjectURL(f),state:'new',msg:'',b64:null,mime:'image/jpeg'};
+  const p={id:++phSeq,key:phNewKey(),cs:'',ci:false,f:f,url:URL.createObjectURL(f),state:'new',msg:'',b64:null,mime:'image/jpeg'};
   PHOTOS.push(p);
   // read the photo into memory right away (Android can revoke access to the picked file later)
   shrinkToB64(f,2200).then(d=>{p.b64=d;p.mime='image/jpeg'}).catch(()=>toBase64(f).then(d=>{p.b64=d;p.mime=f.type||'image/jpeg'}).catch(()=>{}));
 }
 function renderPhotos(){
+  phSaveSoon();
   const box=document.getElementById('photos');
   if(!PHOTOS.length){box.innerHTML='';prev.hidden=true;return}
   box.innerHTML='<div class="phhead"><b>'+PHOTOS.length+' photo'+(PHOTOS.length>1?'s':'')+'</b><button type="button" class="alt phx" id="ph-clear">Remove all</button></div>'+
@@ -1304,8 +1436,8 @@ document.getElementById('photos').addEventListener('click',e=>{
   const v=e.target.closest('[data-view]'), d=e.target.closest('[data-del]'), c=e.target.closest('#ph-clear');
   if(v){const p=PHOTOS.find(x=>x.id==v.getAttribute('data-view')); if(p){prev.src=p.url;prev.hidden=false;prev.scrollIntoView({block:'nearest'})}}
   if((d||c)&&phBusy) return;
-  if(d){const i=PHOTOS.findIndex(x=>x.id==d.getAttribute('data-del')); if(i>-1){URL.revokeObjectURL(PHOTOS[i].url);PHOTOS.splice(i,1);renderPhotos()}}
-  if(c){PHOTOS.forEach(p=>URL.revokeObjectURL(p.url));PHOTOS.length=0;renderPhotos()}
+  if(d){const i=PHOTOS.findIndex(x=>x.id==d.getAttribute('data-del')); if(i>-1){URL.revokeObjectURL(PHOTOS[i].url);phQueueDel(PHOTOS[i]);PHOTOS.splice(i,1);renderPhotos()}}
+  if(c){PHOTOS.forEach(p=>{phQueueDel(p);URL.revokeObjectURL(p.url)});PHOTOS.length=0;renderPhotos()}
 });
 // Shrink big phone photos (max 2200 px, JPEG) so the upload is small and reliable
 function shrinkToB64(f,maxSide){
@@ -1588,9 +1720,9 @@ async function saveFile(){
   const f=readFiles();
   if(f[n] && n!==getCurrent() && !(await askConfirm('A file named "'+n+'" already exists. Replace it?','Replace'))) return;
   const oldName=getCurrent(), existed=!!f[n];
-  f[n]=(MODE==='fix')?{rows:[],updated:Date.now(),mode:'fix',fx:fxJson()}:{rows:currentRows().map(normalize),updated:Date.now(),mode:MODE};
+  f[n]=(MODE==='fix')?{rows:[],updated:Date.now(),mode:'fix',fx:fxJson()}:{rows:currentRows().map(normalize),updated:Date.now(),mode:MODE,meta:rowMetaList()};
   if(oldName && oldName!==n && !existed && f[oldName] && /^\d{4}-\d{2}-\d{2}( \(\d+\))?$/.test(oldName)){delete f[oldName];addTomb(oldName)}   // auto-named file: rename instead of leaving a copy
-  if(writeFiles(f)){setCurrent(n);fmsg.textContent='Saved "'+n+'".';renderFiles();document.getElementById('dlg-save').close();fbSync();}
+  if(writeFiles(f)){setCurrent(n);phSave(); if(oldName&&oldName!==n&&!f[oldName]) PHDB.del(oldName).catch(()=>{});fmsg.textContent='Saved "'+n+'".';renderFiles();document.getElementById('dlg-save').close();fbSync();}
 }
 let renameFrom='';
 function showRename(n){renameFrom=n;document.getElementById('rn-name').value=n;document.getElementById('rn-msg').textContent='';document.getElementById('dlg-rename').showModal();document.getElementById('rn-name').select()}
@@ -1601,6 +1733,8 @@ function doRename(){
   const f=readFiles(); if(!f[renameFrom]){document.getElementById('dlg-rename').close();return}
   if(f[nn]){msg.textContent='A file with this name already exists.';return}
   f[nn]=f[renameFrom]; f[nn].updated=Date.now(); delete f[renameFrom];
+  phQueueDelFile(renameFrom); if(getCurrent()===renameFrom) PHOTOS.forEach(p=>{p.cs='';p.ci=false});
+  PHDB.get(renameFrom).then(a=>{ if(!a) return; a.forEach(x=>{x.cs='';x.ci=false}); return PHDB.put(nn,a).then(()=>PHDB.del(renameFrom)) }).catch(()=>{});
   if(!writeFiles(f)) return;
   addTomb(renameFrom);
   if(getCurrent()===renameFrom){setCurrent(nn);fname.value=nn}
@@ -1612,18 +1746,20 @@ document.getElementById('rn-name').addEventListener('keydown',e=>{if(e.key==='En
 async function openFile(n){
   const f=readFiles(); if(!f[n]) return;
   if(getCurrent()!==n && isDirty() && !(await askConfirm('Open "'+n+'"? Unsaved changes in the current sheet will be replaced.','Open anyway'))) return;
+  await phSave();
   setMode(f[n].mode||'sawn');
   loadFileInto(f[n]);
-  fname.value=n; setCurrent(n); update(); fmsg.textContent='Opened "'+n+'".'; renderFiles();
+  fname.value=n; setCurrent(n); update(); phRestore(n); fmsg.textContent='Opened "'+n+'".'; renderFiles();
 }
 async function delFile(n){
   if(!(await askConfirm('Delete file "'+n+'"? This cannot be undone.','Delete'))) return;
-  const f=readFiles(); delete f[n]; writeFiles(f); addTomb(n);
+  const f=readFiles(); delete f[n]; writeFiles(f); addTomb(n); PHDB.del(n).catch(()=>{}); phQueueDelFile(n); if(getCurrent()===n) phClear();
   if(getCurrent()===n){ setCurrent(''); rows.innerHTML=''; addRow(); fname.value=today(); update(); if(MODE==='fix'){FX=fxBlank();fxRender();fxSave();} }  // deleted file was open: close it, otherwise auto-save would bring it back
   fmsg.textContent='Deleted "'+n+'".'; renderFiles(); fbSync();
 }
 async function newFile(){
   if(isDirty() && !(await askConfirm('Start a new sheet? Unsaved changes will be lost (saved files are not affected).','Start new'))) return;
+  await phSave(); phClear();
   rows.innerHTML=''; addRow(); setCurrent(''); fname.value=today(); update(); if(MODE==='fix'){FX=fxBlank();fxRender();fxSave();} fmsg.textContent='New sheet started.'; renderFiles();
 }
 document.getElementById('fsave').onclick=saveFile;
@@ -1639,14 +1775,14 @@ function uniqueName(base){
 function scheduleAutoSave(){ clearTimeout(autoT); autoT=setTimeout(autoSaveNow,700); }
 function autoSaveNow(){
   if(MODE==='fix'){ fxAutoSave(); return; }
-  const list=currentRows().map(normalize);
+  const list=currentRows().map(normalize), meta=rowMetaList();
   if(!list.length || !activeOk()) return;          // never overwrite a saved file with an empty sheet
   const f=readFiles(); let n=getCurrent();
   if(!n) n=uniqueName(today());                    // new sheet: own file, never replaces an older one
-  if(f[n] && JSON.stringify(f[n].rows)===JSON.stringify(list) && (f[n].mode||'sawn')===MODE) return;   // nothing changed
-  f[n]={rows:list,updated:Date.now(),mode:MODE};
+  if(f[n] && JSON.stringify(f[n].rows)===JSON.stringify(list) && JSON.stringify(f[n].meta||[])===JSON.stringify(meta) && (f[n].mode||'sawn')===MODE) return;   // nothing changed
+  f[n]={rows:list,updated:Date.now(),mode:MODE,meta:meta};
   if(!writeFiles(f)) return;
-  if(getCurrent()!==n){ setCurrent(n); fname.value=n; }
+  if(getCurrent()!==n){ setCurrent(n); fname.value=n; phSave(); }
   fmsg.textContent='Auto-saved "'+n+'".'; renderFiles();
   pushSoon();
 }
@@ -2072,7 +2208,7 @@ function loadFileInto(e){
     try{FX=fxClean(JSON.parse(e.fx||'null'))}catch(x){FX=fxBlank()}
     fxRender(); try{localStorage.setItem(FXKEY,JSON.stringify(FX))}catch(x){} return;
   }
-  rows.innerHTML=''; (e.rows||[]).forEach(v=>addRow(v)); if(!rows.children.length) addRow();
+  rows.innerHTML=''; { const mt=Array.isArray(e.meta)?e.meta:Object.values(e.meta||{}); (e.rows||[]).forEach((v,i)=>{const tr=addRow(v); if(mt[i]) applyMeta(tr,mt[i])}); } if(!rows.children.length) addRow();
 }
 function fileMeta(e){
   if((e.mode||'sawn')==='fix'){
@@ -2144,20 +2280,20 @@ async function fbSync(){
     const remote=(await r.json())||{};
     try{ if(window.BillSync&&remote.bill) BillSync.merge(remote.bill) }catch(e){}
     const rmap={}, rt={};
-    Object.values(remote.files||{}).forEach(x=>{if(x&&x.name) rmap[x.name]={rows:toArr(x.rows),updated:x.updated||0,mode:x.mode||'sawn',...(x.fx?{fx:x.fx}:{})}});
+    Object.values(remote.files||{}).forEach(x=>{if(x&&x.name) rmap[x.name]={rows:toArr(x.rows),updated:x.updated||0,mode:x.mode||'sawn',...(x.fx?{fx:x.fx}:{}),...(x.meta?{meta:Array.isArray(x.meta)?x.meta:Object.values(x.meta)}:{})}});
     Object.values(remote.deleted||{}).forEach(x=>{if(x&&x.name) rt[x.name]=x.ts||0});
     const lf=readFiles(), lt=readTomb(), tt={}, out={};
     new Set([...Object.keys(lt),...Object.keys(rt)]).forEach(n=>tt[n]=Math.max(lt[n]||0,rt[n]||0));
     new Set([...Object.keys(lf),...Object.keys(rmap)]).forEach(n=>{
       const a=lf[n], b=rmap[n]; const best=(!b||(a&&a.updated>=b.updated))?a:b;
       if((tt[n]||0)>=(best.updated||0)) return;
-      out[n]={rows:toArr(best.rows),updated:best.updated||0,mode:best.mode||'sawn',...(best.fx?{fx:best.fx}:{})};
+      out[n]={rows:toArr(best.rows),updated:best.updated||0,mode:best.mode||'sawn',...(best.fx?{fx:best.fx}:{}),...(best.meta?{meta:best.meta}:{})};
     });
     const changed=JSON.stringify(out)!==JSON.stringify(lf);
     if(changed){ writeFiles(out); if(getCurrent()&&!out[getCurrent()]) setCurrent(''); }
     try{localStorage.setItem(TOMB,JSON.stringify(tt))}catch(e){}
     const body={files:{},deleted:{}};
-    Object.keys(out).forEach(n=>body.files[fbKey(n)]={name:n,rows:out[n].rows,updated:out[n].updated,mode:out[n].mode,fx:out[n].fx});
+    Object.keys(out).forEach(n=>body.files[fbKey(n)]={name:n,rows:out[n].rows,updated:out[n].updated,mode:out[n].mode,fx:out[n].fx,meta:out[n].meta});
     Object.keys(tt).forEach(n=>{if(!out[n]) body.deleted[fbKey(n)]={name:n,ts:tt[n]}});
     let billWarn=false; const bl=window.BillSync&&BillSync.get(); if(bl) body.bill=bl;
     let w=await fetch(url,{method:'PUT',body:JSON.stringify(body)});
@@ -2350,6 +2486,24 @@ fname.value=getCurrent()||today();
 renderFiles();
 load();
 if(!rows.children.length) addRow();
+phRestore(getCurrent()).then(()=>phCloudSoon());
+// Back button: close an open dialog first; otherwise ask to press back again instead of closing the app at once
+(function(){
+  let last=0, armed=false;
+  const toast=t=>{let e=document.getElementById('bk-toast'); if(!e){e=document.createElement('div');e.id='bk-toast';e.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:.9rem;z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none';document.body.appendChild(e)} e.textContent=t;e.style.opacity='1';clearTimeout(e._t);e._t=setTimeout(()=>{e.style.opacity='0'},2200)};
+  const arm=()=>{ if(armed) return; armed=true; try{history.pushState({lc:1},'')}catch(e){} };
+  const rearm=()=>{ arm(); if(!armed) return; };
+  document.addEventListener('pointerdown',arm,{once:true});
+  window.addEventListener('popstate',()=>{
+    armed=false;
+    const dlg=[...document.querySelectorAll('dialog[open]')].pop();
+    if(dlg){ try{dlg.close()}catch(e){} arm(); document.addEventListener('pointerdown',arm,{once:true}); return }
+    const now=Date.now();
+    if(now-last<2500) return;                 // second quick back: let the app close
+    last=now; arm(); document.addEventListener('pointerdown',arm,{once:true});
+    toast('Your work is saved. Press back again to exit');
+  });
+})();
 try{
   const k=localStorage.getItem(KEYSTORE);
   if(k){document.getElementById('key').value=k;document.getElementById('remember').checked=true;}
