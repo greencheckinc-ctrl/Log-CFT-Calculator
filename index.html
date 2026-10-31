@@ -758,13 +758,16 @@ html.locked body{overflow:hidden}
 </div>
 
 <div class="box">
-  <strong id="grp-title">By first number</strong>
+  <button type="button" id="grp-toggle" class="alt" aria-expanded="false" aria-controls="grp-body" style="display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;font-weight:700;font-size:1.1rem"><span id="grp-title">Sort</span><span id="grp-arrow" aria-hidden="true">&#9662;</span></button>
+<div id="grp-body" hidden style="margin-top:10px">
   <div class="bar" id="grp-sortbar"><button type="button" id="gs-k">Sort by size</button><button type="button" id="gs-n" class="alt">Sort by logs</button><button type="button" id="gs-c" class="alt">Sort by CFT</button></div>
   <div id="grp-ranges"></div>
   <div class="bar" style="grid-template-columns:1fr 1fr"><button type="button" id="gr-add" class="alt">+ Range</button><button type="button" id="gr-clear" class="alt">Clear ranges</button></div>
   <table><thead><tr><th id="grp-h1">Size</th><th id="grp-h2">Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
   <div class="bar" style="grid-template-columns:1fr"><button type="button" id="grp-bill">Generate bill</button></div>
 </div>
+</div>
+<script>(function(){var t=document.getElementById("grp-toggle"),b=document.getElementById("grp-body"),r=document.getElementById("grp-arrow");t.addEventListener("click",function(){var o=b.hidden;b.hidden=!o;t.setAttribute("aria-expanded",String(o));r.innerHTML=o?"&#9652;":"&#9662;";});})();</script>
 <dialog id="dlg-merge">
   <div class="tb">Merge &amp; sort table</div>
   <div class="bd" id="mfbox">
@@ -1782,7 +1785,29 @@ function uniqueName(base){
   const f=readFiles(); if(!f[base]) return base;
   let i=2; while(f[base+' ('+i+')']) i++; return base+' ('+i+')';
 }
-function scheduleAutoSave(){ clearTimeout(autoT); autoT=setTimeout(autoSaveNow,700); }
+const LASTACT='logcft_lastact_v1', STALE_MS=6*60*60*1000;
+function touchAct(){try{localStorage.setItem(LASTACT,String(Date.now()))}catch(e){}}
+function scheduleAutoSave(){ touchAct(); clearTimeout(autoT); autoT=setTimeout(autoSaveNow,700); }
+// 6+ hours since the last change: the open sheet is already auto-saved under its name; close it and start a fresh one
+async function rolloverIfStale(){
+  let t=0; try{t=parseInt(localStorage.getItem(LASTACT)||'0',10)||0}catch(e){}
+  if(!t) return false;
+  if(Date.now()-t<STALE_MS) return false;
+  const has=(MODE==='fix')?fxHasData():currentRows().length>0;
+  if(!has){ touchAct(); return false; }
+  clearTimeout(autoT); autoSaveNow();
+  const old=getCurrent();
+  try{ await phSave(true) }catch(e){}
+  phClear();
+  rows.innerHTML=''; addRow(); setCurrent('');
+  const sn=document.getElementById('sheet-name'); if(sn){ sn.value=''; try{localStorage.setItem(SHEETNAMEKEY,'')}catch(e){} }
+  fname.value=today(); update();
+  if(MODE==='fix'){ FX=fxBlank(); fxRender(); try{localStorage.setItem(FXKEY,JSON.stringify(FX))}catch(e){} }
+  touchAct();
+  fmsg.textContent=(old?'Previous sheet saved as "'+old+'". ':'')+'New sheet opened.';
+  renderFiles();
+  return true;
+}
 function autoSaveNow(){
   if(MODE==='fix'){ fxAutoSave(); return; }
   const list=currentRows().map(normalize), meta=rowMetaList();
@@ -2246,7 +2271,7 @@ function applyMode(){
   document.getElementById('th-size').textContent=r?'Length x Girth (25 45 or 25x45)':'Size (7776, 7 7 76 or 7x7-76)';
   document.getElementById('th-val').textContent=r?'CBM':'CFT';
   document.getElementById('tot-label').textContent=r?'Total CBM':'Total CFT';
-  document.getElementById('grp-title').textContent=r?'By length':'By first number';
+  document.getElementById('grp-title').textContent='Sort';
   document.getElementById('grp-h1').textContent=r?'Length':'Size';
   document.getElementById('grp-h3').textContent=r?'CBM':'CFT';
   document.getElementById('sort').textContent=r?'Sort by length':'Sort by first number';
@@ -2496,7 +2521,9 @@ fname.value=getCurrent()||today();
 renderFiles();
 load();
 if(!rows.children.length) addRow();
-phRestore(getCurrent()).then(()=>phCloudSoon());
+rolloverIfStale().then(()=>{ fname.value=getCurrent()||today(); return phRestore(getCurrent()) }).then(()=>phCloudSoon());
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) rolloverIfStale() });
+setInterval(()=>{ if(!document.hidden) rolloverIfStale() },60000);
 // Back button: close an open dialog first; otherwise ask to press back again instead of closing the app at once
 (function(){
   let last=0, armed=false;
