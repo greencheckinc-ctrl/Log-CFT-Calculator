@@ -589,9 +589,13 @@ html.locked body{overflow:hidden}
       <b>CBM Formula:</b> CBM = CFT &divide; 35.315<br><br>
       <b>Units used:</b><br>&bull; Width: Inch<br>&bull; Thickness: Inch<br>&bull; Length: Feet (the 2-digit code is feet + inch, e.g. 76 = 7 ft 6 in = 7.5 ft)<br>&bull; CFT: Cubic Feet (ft&sup3;). The sheet shows CFT &times; 100<br><br>
       <b>Example:</b> Size 7x7-76 &rarr; 7 &times; 7 &times; 7.5 &divide; 144 = 2.552 CFT (the sheet shows 255)<br><br>
+      <b>Length rounding (default, Exact length not ticked):</b> the length goes up to the next 3 inches (0.25 ft). A decimal is read as feet.inches, so 7.30 means 7 ft 3 in.<br>&bull; 7.03 to 7.30 &rarr; 7.25<br>&bull; 7.31 to 7.60 &rarr; 7.50<br>&bull; 7.61 to 7.90 &rarr; 7.75<br>&bull; 7.91 to 8.02 &rarr; 8.00 (a small .01 or .02 above a whole foot counts as that foot)<br>&bull; Inch digit in a code: 1&ndash;3 &rarr; 3 in, 4&ndash;6 &rarr; 6 in, 7&ndash;9 &rarr; 9 in. So 73, 75 and 76 are 7 ft 3 in, 6 in and 6 in.<br><br>
+      <b>Exact length (tick box):</b> when ticked there is no rounding. A decimal is plain decimal feet (7.24 stays 7.24 ft) and 75 is exactly 7 ft 5 in.<br><br>
       <b>How to type:</b><br>&bull; <b>7776</b>, <b>7 7 76</b> or <b>7x7-76</b> all mean width 7, thickness 7, length 7 ft 6 in.<br>&bull; Two-digit sizes: <b>101076</b> means 10 &times; 10, length 7 ft 6 in.<br>&bull; Decimals work too, e.g. <b>7.5x6-76</b>.<br><br>
       <i>Note: The value is the real (square-edged) volume of the sawn piece.</i>
     </div>
+  <label style="display:flex;align-items:center;gap:10px;margin:14px 0 2px;padding-top:10px;border-top:1px solid var(--line);font-weight:700;cursor:pointer"><input type="checkbox" id="sw-ex" style="width:22px;height:22px;min-height:0;margin:0;flex:none"> <span>Exact length <span style="font-weight:400;font-size:.88rem">(no rounding: 7.24, 7.43 &hellip; counted as plain decimal feet)</span></span></label>
+  <div style="margin:4px 0 0 32px;font-size:.9rem;font-weight:700;color:var(--wood,#1f6f4a)">Please tick if you need the exact length.</div>
   </details>
 </div>
 
@@ -814,7 +818,7 @@ html.locked body{overflow:hidden}
   <label for="sheet-name" style="margin-top:0">Name for sheet heading (optional)</label>
   <input id="sheet-name" type="text" autocomplete="off" maxlength="60" placeholder="e.g. party / vehicle / lot name" style="display:block;width:100%;box-sizing:border-box;min-height:54px;padding:12px 14px;font-size:1.05rem;margin:4px 0 8px">
   <table class="etbl">
-    <thead><tr><th>#</th><th id="th-size">Size (7776, 7 7 76 or 7x7-76)</th><th id="th-val">CFT</th><th class="th2">CFT</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th id="th-size">Size (7776, 7x7-76 or 7x7-7.25)</th><th id="th-val">CFT</th><th class="th2">CFT</th><th></th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <div class="bar">
@@ -944,11 +948,27 @@ function roundVol(size){
   return {cft:cft,cbm:cft/CFT_PER_CBM,m:p.m,g:p.g};
 }
 function fmtVal(c,mode){return (mode||MODE)==='round'?c.toFixed(3):c.toFixed(2)}
+const SWKEY='logcft_sawnset_v1';
+let SW={ex:false}; try{const v=JSON.parse(localStorage.getItem(SWKEY)||'null'); if(v&&typeof v==='object') SW={ex:!!v.ex}}catch(e){}
+function swSizeLabel(){return 'Size (7776, 7x7-76 or 7x7-7.25)'}
+// Length in feet.
+// Not ticked: a typed decimal is feet.inches (7.30 = 7 ft 3 in) and goes UP to the next 3 inches (0.25 ft):
+//   7.03-7.30 -> 7.25, 7.31-7.60 -> 7.50, 7.61-7.90 -> 7.75, 7.91-8.02 -> 8.00 (x.00, x.01 and x.02 count as x.00).
+// A 2-digit code like 76 = 7 ft 6 in; its inch digit 1-3 -> 3 in, 4-6 -> 6 in, 7-9 -> 9 in.
+// Ticked "Exact length": no rounding; a decimal is plain decimal feet (7.24 = 7.24 ft) and 75 = 7 ft 5 in exactly.
 function lengthFt(code){
-  const n = parseInt(code,10);
+  const c=String(code);
+  if(c.indexOf('.')>-1){
+    const f=parseFloat(c); if(isNaN(f)) return null;
+    if(SW.ex) return f;
+    const whole=Math.floor(f+1e-9), h=Math.round((f-whole)*1e6)/1e4;   // fraction as 0..99.99 (two digits = tenths of an inch)
+    if(h<=2.0001) return whole;
+    return whole + Math.ceil(h/30-1e-9)*0.25;
+  }
+  const n = parseInt(c,10);
   if (isNaN(n)) return null;
   const feet = Math.floor(n/10), inch = n%10;
-  return feet + inch/12;
+  return feet + (SW.ex ? inch/12 : Math.ceil(inch/3)*0.25);
 }
 // Accepts: 7x7-76, 7 7 76, 7776, 7-7-76, 7*7*76, 77 76, 7.5x6-76
 function parseSize(size){
@@ -965,10 +985,12 @@ function parseSize(size){
     a=t[0][0]; b=t[0][1]; code=t[1];
   } else if(t.length===2 && /^\d{3}$/.test(t[1])){    // 7 776
     a=t[0]; b=t[1][0]; code=t[1].slice(1);
+  } else if(t.length===2 && /^\d{2}$/.test(t[0]) && /^\d+\.\d+$/.test(t[1])){  // 77 7.25 (length in feet with decimal)
+    a=t[0][0]; b=t[0][1]; code=t[1];
   } else if(t.length===3){                            // 7 7 76 / 7x7-76
     [a,b,code]=t;
   } else return null;
-  if(!/^\d{2}$/.test(code)) return null;
+  if(!/^\d{2}$/.test(code) && !(/^\d+\.\d+$/.test(code) && parseFloat(code)>0 && parseFloat(code)<=100)) return null;
   return {a:parseFloat(a),b:parseFloat(b),code};
 }
 function normalize(size){
@@ -2360,7 +2382,7 @@ function applyMode(){
   if(MODE==='fix') fxRender();
   document.getElementById('mode-round').setAttribute('aria-pressed',String(r));
   const _st=document.getElementById('subtxt'); if(_st) _st.textContent=r?'Upload a photo of the round log sheet. Length and girth are read automatically and the CBM is calculated.':'Upload a photo of the measurement sheet. Sizes are read automatically and the CFT is calculated.';
-  document.getElementById('th-size').textContent=r?'Length x Girth (6063 or 60x63)':'Size (7776, 7 7 76 or 7x7-76)';
+  document.getElementById('th-size').textContent=r?'Length x Girth (6063 or 60x63)':swSizeLabel();
   document.getElementById('th-val').textContent=r?'CBM':'CFT';
   document.getElementById('tot-label').textContent=r?'Total CBM':'Total CFT';
   document.getElementById('grp-title').textContent='Sort';
@@ -2620,6 +2642,13 @@ document.getElementById('dlg-act').addEventListener('close',()=>setTimeout(lockI
   }
   ['input','change'].forEach(function(e){L.addEventListener(e,ap);U.addEventListener(e,ap);G.addEventListener(e,ap)});
   H.textContent=rsHint();
+})();
+(function(){
+  var X=document.getElementById('sw-ex'); if(!X) return; X.checked=!!SW.ex;
+  X.addEventListener('change',function(){
+    SW.ex=X.checked; try{localStorage.setItem(SWKEY,JSON.stringify(SW))}catch(e){}
+    if(MODE==='sawn'){ var th=document.getElementById('th-size'); if(th) th.textContent=swSizeLabel(); update(); }
+  });
 })();
 fname.value=getCurrent()||today();
 renderFiles();
