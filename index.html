@@ -1333,6 +1333,34 @@ function makeSheetPdf(){
   const bytes=new Uint8Array(out.length); for(let i=0;i<out.length;i++) bytes[i]=out.charCodeAt(i)&255;
   return {blob:new Blob([bytes],{type:'application/pdf'}), total:grand, count:l.length};
 }
+// Open WhatsApp: mobile -> WhatsApp app, desktop -> WhatsApp Desktop app, else WhatsApp Web
+function openWhatsApp(text){
+  const enc=encodeURIComponent(text), ua=navigator.userAgent||'';
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua)||(navigator.maxTouchPoints>1&&/Macintosh/.test(ua));
+  const appUrl='whatsapp://send?text='+enc;
+  const webUrl=mobile?'https://wa.me/?text='+enc:'https://web.whatsapp.com/send?text='+enc;
+  let left=false;
+  const gone=()=>{left=true};
+  window.addEventListener('blur',gone);
+  document.addEventListener('visibilitychange',gone);
+  const cleanup=()=>{window.removeEventListener('blur',gone);document.removeEventListener('visibilitychange',gone)};
+  if(mobile){ window.location.href=appUrl; }
+  else{
+    const fr=document.createElement('iframe'); fr.style.display='none'; fr.src=appUrl;
+    document.body.appendChild(fr); setTimeout(()=>fr.remove(),3000);
+  }
+  // App did not open (not installed / no app handler) -> fall back to the web version
+  setTimeout(()=>{
+    cleanup();
+    if(left||document.hidden) return;
+    if(mobile){ window.location.href=webUrl; return }
+    const w=window.open(webUrl,'_blank');
+    if(!w){
+      const a=document.createElement('a'); a.href=webUrl; a.target='_blank'; a.rel='noopener'; a.textContent='Open WhatsApp Web';
+      const box=document.getElementById('status'); if(box){box.appendChild(document.createTextNode(' '));box.appendChild(a)}
+    }
+  },1800);
+}
 function pvSay(t,bad){const pm=document.getElementById('pv-msg'); if(pm) pm.innerHTML=bad?'<span class="err">'+esc(t)+'</span>':esc(t)}
 async function shareSawnPdf(){
   if(!getList().length){st.innerHTML='<span class="err">Add some sizes first.</span>';pvSay('Add some sizes first.',true);return}
@@ -1356,7 +1384,7 @@ async function shareSawnPdf(){
     setTimeout(()=>URL.revokeObjectURL(a.href),4000);
     st.innerHTML='PDF saved as <strong>'+esc(fname)+'</strong>. WhatsApp will open - attach the PDF there (paperclip > Document) and send it.';
     pvSay('PDF saved as '+fname+'. WhatsApp will open - attach the PDF there (paperclip > Document) and send it.');
-    setTimeout(()=>{window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank')},600);
+    setTimeout(()=>openWhatsApp(text),600);
   }
 }
 
@@ -2338,7 +2366,7 @@ async function shareFixPdf(){
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
     fxMsg('PDF saved as '+pdfName+'. WhatsApp will open - attach the PDF there (paperclip > Document) and send it.');
     pvSay('PDF saved as '+pdfName+'. WhatsApp will open - attach the PDF there (paperclip > Document) and send it.');
-    setTimeout(()=>{window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank')},600);
+    setTimeout(()=>openWhatsApp(text),600);
   }
 }
 // saving fixed-size sheets as files
