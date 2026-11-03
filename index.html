@@ -805,8 +805,12 @@ html.locked body{overflow:hidden}
 </dialog>
 
 <div class="box">
-  <label for="file">Sheet photos, Excel (.xlsx) or PDF (add one or many)</label>
-  <input id="file" type="file" accept="image/*,.xlsx,.xlsm,.csv,.pdf,application/pdf" multiple>
+  <label for="file">Sheet photos (add one or many)</label>
+  <button id="cam-btn" type="button" class="alt" style="width:100%;margin:0 0 8px">&#128247; Take photo (camera)</button>
+  <input id="file-cam" type="file" accept="image/*" capture="environment" style="display:none">
+  <input id="file" type="file" accept="image/*" multiple>
+  <label for="file-doc" style="margin-top:10px;display:block">Or Excel (.xlsx / .xls), CSV or PDF file</label>
+  <input id="file-doc" type="file" accept=".xlsx,.xlsm,.xls,.csv,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" multiple>
   <div id="photos"></div>
   <img id="prev" alt="" hidden>
   <div class="btnrow"><button id="go" type="button">Read sizes</button><button id="paste-open" type="button" class="alt">Paste sizes</button></div>
@@ -823,6 +827,7 @@ html.locked body{overflow:hidden}
   </table>
   <div class="bar">
     <button id="sort" type="button" class="alt">Sort by first number</button>
+    <button id="sort-g" type="button" class="alt" style="display:none">Sort by girth</button>
     <button id="print" type="button">Print sheet</button>
     <button id="clear" type="button" class="alt">Clear all</button>
   </div>
@@ -841,7 +846,7 @@ html.locked body{overflow:hidden}
 <div class="box">
   <button type="button" id="grp-toggle" class="alt" aria-expanded="false" aria-controls="grp-body" style="display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;font-weight:700;font-size:1.1rem"><span id="grp-title">Sort</span><span id="grp-arrow" aria-hidden="true">&#9662;</span></button>
 <div id="grp-body" hidden style="margin-top:10px">
-  <div class="bar" id="grp-sortbar"><button type="button" id="gs-k">Sort by size</button><button type="button" id="gs-n" class="alt">Sort by logs</button><button type="button" id="gs-c" class="alt">Sort by CFT</button></div>
+  <div class="bar" id="grp-sortbar"><button type="button" id="gs-k">Sort by size</button><button type="button" id="gs-g" class="alt" style="display:none">Sort by girth</button><button type="button" id="gs-c" class="alt">Sort by CFT</button></div>
   <div id="grp-ranges"></div>
   <div class="bar" style="grid-template-columns:1fr 1fr"><button type="button" id="gr-add" class="alt">+ Range</button><button type="button" id="gr-clear" class="alt">Clear ranges</button></div>
   <table><thead><tr><th id="grp-h1">Size</th><th id="grp-h2">Logs</th><th id="grp-h3">CFT</th></tr></thead><tbody id="grp"></tbody></table>
@@ -1049,11 +1054,12 @@ function load(){
   }catch(e){}
 }
 // "By length" / "By first number" table: tap a header to sort (tap again = reverse)
-var GSORT={k:'k',d:1};
-try{const gsv=JSON.parse(localStorage.getItem('logcft_gsort_v1')||'null'); if(gsv&&['k','n','c'].indexOf(gsv.k)>-1) GSORT={k:gsv.k,d:gsv.d===-1?-1:1}}catch(e){}
+var GSORT={k:'k',d:1,by:'len'};
+try{const gsv=JSON.parse(localStorage.getItem('logcft_gsort_v1')||'null'); if(gsv&&['k','n','c'].indexOf(gsv.k)>-1) GSORT={k:gsv.k,d:gsv.d===-1?-1:1,by:gsv.by==='girth'?'girth':'len'}}catch(e){}
+function gByGirth(){return MODE==='round'&&GSORT.by==='girth'}
 function gHeads(){
   const r=MODE==='round';
-  const lab={k:r?'Length':'Size',n:'Logs',c:r?'CBM':'CFT'}, ids={k:'grp-h1',n:'grp-h2',c:'grp-h3'};
+  const gg=gByGirth(), lab={k:r?(gg?'Girth':'Length'):'Size',n:'Logs',c:r?'CBM':'CFT'}, ids={k:'grp-h1',n:'grp-h2',c:'grp-h3'};
   Object.keys(ids).forEach(k=>{
     const el=document.getElementById(ids[k]); if(!el) return;
     el.textContent=lab[k]+(GSORT.k===k?(GSORT.d===1?' \u25B2':' \u25BC'):'');
@@ -1061,20 +1067,28 @@ function gHeads(){
     el.setAttribute('role','button'); el.setAttribute('tabindex','0');
     el.title='Tap to sort';
   });
-  const sl={k:r?'length':'size',n:'logs',c:r?'CBM':'CFT'}, sb={k:'gs-k',n:'gs-n',c:'gs-c'};
+  const sl={k:r?'length':'size',n:'logs',c:r?'CBM':'CFT'}, sb={k:'gs-k',c:'gs-c'};
   Object.keys(sb).forEach(k=>{
     const b=document.getElementById(sb[k]); if(!b) return;
-    b.textContent='Sort by '+sl[k]+(GSORT.k===k?(GSORT.d===1?' \u25B2':' \u25BC'):'');
-    b.className=GSORT.k===k?'':'alt';
+    const on=GSORT.k===k&&(k!=='k'||!r||!gg);
+    b.textContent='Sort by '+sl[k]+(on?(GSORT.d===1?' \u25B2':' \u25BC'):'');
+    b.className=on?'':'alt';
   });
+  const gb=document.getElementById('gs-g');
+  if(gb){
+    gb.style.display=r?'':'none';
+    const on=r&&gg&&GSORT.k==='k';
+    gb.textContent='Sort by girth'+(on?(GSORT.d===1?' \u25B2':' \u25BC'):'');
+    gb.className=on?'':'alt';
+  }
 }
 // Length ranges for the "By length" table (kept separately for each sheet type)
 var GR_DATA=null;
 function grAll(){
-  if(!GR_DATA){GR_DATA={sawn:[],round:[]}; try{const v=JSON.parse(localStorage.getItem('logcft_grange_v1')||'null'); if(v&&typeof v==='object'){['sawn','round'].forEach(m=>{if(Array.isArray(v[m])) GR_DATA[m]=v[m].map(r=>({f:String((r&&r.f)||''),t:String((r&&r.t)||'')}))})}}catch(e){}}
+  if(!GR_DATA){GR_DATA={sawn:[],round:[],girth:[]}; try{const v=JSON.parse(localStorage.getItem('logcft_grange_v1')||'null'); if(v&&typeof v==='object'){['sawn','round','girth'].forEach(m=>{if(Array.isArray(v[m])) GR_DATA[m]=v[m].map(r=>({f:String((r&&r.f)||''),t:String((r&&r.t)||'')}))})}}catch(e){}}
   return GR_DATA;
 }
-function grList(){const a=grAll(); return a[MODE==='round'?'round':'sawn']}
+function grList(){const a=grAll(); return a[MODE==='round'?(gByGirth()?'girth':'round'):'sawn']}
 function grSave(){try{localStorage.setItem('logcft_grange_v1',JSON.stringify(grAll()))}catch(e){}}
 function grInR(v,r){
   let f=parseFloat(String(r.f).replace(',','.')), t=String(r.t).trim()===''?Infinity:parseFloat(String(r.t).replace(',','.'));
@@ -1082,12 +1096,12 @@ function grInR(v,r){
   return v>=f-1e-9&&v<=t+1e-9;
 }
 function grLabel(r){
-  const f=String(r.f).trim()||'0', t=String(r.t).trim(), u=MODE==='round'?' m':' x';
+  const f=String(r.f).trim()||'0', t=String(r.t).trim(), u=MODE==='round'?(gByGirth()?' cm':' m'):' x';
   return t?f+' - '+t+u:f+' upper'+u;
 }
 function gRowsHtml(g,gks){
   const rg=grList(), r=MODE==='round';
-  const row=k=>'<tr><td>'+(r?parseFloat(k)+' m':k+' x')+'</td><td>'+g[k].n+'</td><td>'+fmtVal(g[k].c)+'</td></tr>';
+  const gg=gByGirth(), row=k=>'<tr><td>'+(r?(gg?parseFloat(k)+' cm':parseFloat(k)+' m'):k+' x')+'</td><td>'+g[k].n+'</td><td>'+fmtVal(g[k].c)+'</td></tr>';
   if(!rg.length) return gks.map(row).join('');
   const buckets=rg.map(x=>({label:grLabel(x),keys:[]})), other=[];
   gks.forEach(k=>{
@@ -1108,16 +1122,19 @@ function gRowsHtml(g,gks){
 }
 function grRender(){
   const box=document.getElementById('grp-ranges'); if(!box) return;
-  const rg=grList(), u=MODE==='round'?'m':'';
-  box.innerHTML=rg.length?'<div class="sub" style="font-size:.8rem;margin:0 0 4px">Length Range'+(u?' ('+u+')':'')+'</div>'+rg.map((x,i)=>
+  const rg=grList(), gg=gByGirth(), u=MODE==='round'?(gg?'cm':'m'):'';
+  box.innerHTML=rg.length?'<div class="sub" style="font-size:.8rem;margin:0 0 4px">'+(gg?'Girth':'Length')+' Range'+(u?' ('+u+')':'')+'</div>'+rg.map((x,i)=>
     '<div style="display:grid;grid-template-columns:1fr 1fr 46px;gap:8px;margin:0 0 8px">'
     +'<input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="f" value="'+esc(x.f)+'" placeholder="From" aria-label="From length" style="min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;width:100%;box-sizing:border-box">'
     +'<input type="text" inputmode="decimal" autocomplete="off" data-i="'+i+'" data-k="t" value="'+esc(x.t)+'" placeholder="To (khali = upper)" aria-label="To length" style="min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;width:100%;box-sizing:border-box">'
     +'<button type="button" data-x="'+i+'" aria-label="Remove range" class="alt" style="min-height:46px;padding:0;color:var(--bad)">x</button></div>').join(''):'';
 }
-function gSortBy(k){
-  if(GSORT.k===k) GSORT.d=-GSORT.d; else GSORT={k:k,d:1};
+function gSortBy(k,by){
+  by=by||(k==='k'?'len':GSORT.by);
+  if(MODE!=='round') by='len';
+  if(GSORT.k===k&&GSORT.by===by) GSORT.d=-GSORT.d; else GSORT={k:k,d:1,by:by};
   try{localStorage.setItem('logcft_gsort_v1',JSON.stringify(GSORT))}catch(e){}
+  try{grRender()}catch(e){}
   update();
 }
 // Cross-check: the C.F.T. / CBM printed on the paper sheet against what the size gives
@@ -1158,7 +1175,7 @@ function update(){
   const g={};
   getList().forEach(v=>{
     const c=calc(v); if(c===null) return;
-    const key=MODE==='round'? roundVol(v).m.toFixed(2) : parseSize(v).a;
+    const key=MODE==='round'? (gByGirth()? String(+roundVol(v).g.toFixed(2)) : roundVol(v).m.toFixed(2)) : parseSize(v).a;
     (g[key]=g[key]||{n:0,c:0}).n++; g[key].c+=c;
   });
   const gks=Object.keys(g).sort((x,y)=>{
@@ -1181,12 +1198,14 @@ function sortKey(v){
   const p=parseSize(v); if(!p) return [1e9,0,0];
   return [p.a,p.b,lengthFt(p.code)];
 }
-function sortRows(){
+function sortRows(by){
   const l=[...rows.querySelectorAll('tr')].map(tr=>({v:normalize(tr.querySelector('input').value),sc:tr.dataset.sc||'',sr:tr.dataset.sr||''})).filter(x=>x.v);
-  l.sort((x,y)=>sortKey(x.v)[0]-sortKey(y.v)[0]); // first number only, rest keeps original order
+  if(by==='girth'&&MODE==='round') l.sort((x,y)=>{const a=sortKey(x.v),b=sortKey(y.v); return (a[1]-b[1])||(a[0]-b[0])}); // girth, then length
+  else l.sort((x,y)=>sortKey(x.v)[0]-sortKey(y.v)[0]); // first number only, rest keeps original order
   rows.innerHTML=''; l.forEach(x=>{const tr=addRow(x.v); if(x.sc) tr.dataset.sc=x.sc; if(x.sr) tr.dataset.sr=x.sr}); update();
 }
-document.getElementById('sort').onclick=sortRows;
+document.getElementById('sort').onclick=()=>sortRows();
+document.getElementById('sort-g').onclick=()=>sortRows('girth');
 document.getElementById('grp-ranges').addEventListener('input',e=>{
   const i=e.target.getAttribute('data-i'), k=e.target.getAttribute('data-k'); if(i===null) return;
   grList()[+i][k]=e.target.value; grSave(); update();
@@ -1197,15 +1216,16 @@ document.getElementById('grp-ranges').addEventListener('click',e=>{
 });
 document.getElementById('gr-add').onclick=()=>{
   const l=grList(), last=l[l.length-1], lt=last&&String(last.t).trim()?parseFloat(String(last.t).replace(',','.')):NaN;
-  l.push({f:isNaN(lt)?'':String(Math.round((lt+(MODE==='round'?0.05:0.25))*100)/100),t:''});
+  l.push({f:isNaN(lt)?'':String(Math.round((lt+(MODE==='round'?(gByGirth()?10:0.05):0.25))*100)/100),t:''});
   grSave(); grRender(); update();
 };
 document.getElementById('gr-clear').onclick=()=>{grList().length=0; grSave(); grRender(); update()};
-[['gs-k','k'],['gs-n','n'],['gs-c','c']].forEach(a=>{document.getElementById(a[0]).onclick=()=>gSortBy(a[1])});
+[['gs-k','k'],['gs-c','c']].forEach(a=>{document.getElementById(a[0]).onclick=()=>gSortBy(a[1])});
+{const gb=document.getElementById('gs-g'); if(gb) gb.onclick=()=>gSortBy('k','girth')}
 [['grp-h1','k'],['grp-h2','n'],['grp-h3','c']].forEach(a=>{
   const el=document.getElementById(a[0]);
-  el.addEventListener('click',()=>gSortBy(a[1]));
-  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();gSortBy(a[1])}});
+  el.addEventListener('click',()=>gSortBy(a[1],a[1]==='k'?GSORT.by:undefined));
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();gSortBy(a[1],a[1]==='k'?GSORT.by:undefined)}});
 });
 let xPos=-1;
 document.getElementById('xchk-go').onclick=()=>{
@@ -1264,7 +1284,7 @@ const file=document.getElementById('file'), prev=document.getElementById('prev')
 
 // ---------- Import sizes from Excel (.xlsx/.csv) and text PDF ----------
 // Length 260 -> default length 2 m, row "60x52"; 360 -> default length 3 m, row "60x54". Each Excel sheet becomes its own saved file.
-const IMP_RE=/\.(xlsx|xlsm|csv|pdf)$/i, PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+const IMP_RE=/\.(xlsx|xlsm|xls|csv|pdf)$/i, SHEETJS='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
 async function zipRead(buf){
   const dv=new DataView(buf), u=new Uint8Array(buf); let e=u.length-22;
   while(e>=0&&dv.getUint32(e,true)!==0x06054b50) e--;
@@ -1340,6 +1360,12 @@ async function pdfPairs(buf){
   }
   return pairs;
 }
+// Old Excel 97-2003 (.xls): read with SheetJS (loaded once from the internet)
+async function xlsSheets(buf){
+  if(!window.XLSX) await loadScript(SHEETJS);
+  const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+  return wb.SheetNames.map(n=>({name:n,grid:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null})}));
+}
 async function importDocs(files){
   if(!requireActive()) return;
   const all=[]; let note='';
@@ -1349,7 +1375,7 @@ async function importDocs(files){
       const bn=f.name.replace(/\.[^.]+$/,''), buf=await f.arrayBuffer();
       if(/\.pdf$/i.test(f.name)||f.type==='application/pdf') all.push({name:bn,pairs:await pdfPairs(buf)});
       else if(/\.csv$/i.test(f.name)) all.push({name:bn,pairs:gridPairs(new TextDecoder().decode(buf).split(/\r?\n/).map(l=>l.split(/[,;\t]/)))});
-      else (await xlsxSheets(buf)).forEach(s=>all.push({name:(files.length>1?bn+' - ':'')+s.name,pairs:gridPairs(s.grid)}));
+      else (/\.xls$/i.test(f.name)?await xlsSheets(buf):await xlsxSheets(buf)).forEach(s=>all.push({name:(files.length>1?bn+' - ':'')+s.name,pairs:gridPairs(s.grid)}));
     }catch(e){note+=' '+f.name+': '+(e.message||'could not be read')+'.'}
   }
   const good=all.filter(s=>s.pairs.length);
@@ -1373,6 +1399,10 @@ file.addEventListener('change',e=>{
   if(!docs.length) return;
   e.stopImmediatePropagation(); file.value=''; importDocs(docs);
 },true);
+{const fd=document.getElementById('file-doc'); if(fd) fd.addEventListener('change',()=>{
+  const docs=[...fd.files].filter(f=>IMP_RE.test(f.name)||f.type==='application/pdf');
+  fd.value=''; if(docs.length) importDocs(docs);
+});}
 // ---------- Share the measurement sheet as a PDF (WhatsApp) ----------
 const HW='278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 333 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584'.split(' ').map(Number), HBW='278 333 474 556 556 889 722 238 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611 975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667 778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 333 556 611 556 611 556 333 611 611 278 278 556 278 889 611 611 611 611 389 556 333 611 556 778 556 556 500 389 280 389 584'.split(' ').map(Number);
 function makeSheetPdf(){
@@ -1697,6 +1727,10 @@ file.onchange=()=>{
   renderPhotos();
   if(PHOTOS.length){const l=PHOTOS[PHOTOS.length-1]; prev.src=l.url; prev.hidden=false}
 };
+{const fc=document.getElementById('file-cam'), cb=document.getElementById('cam-btn');
+  if(cb&&fc){ cb.onclick=()=>fc.click();
+    fc.onchange=()=>{[...fc.files].forEach(addPhoto); fc.value=''; renderPhotos();
+      if(PHOTOS.length){const l=PHOTOS[PHOTOS.length-1]; prev.src=l.url; prev.hidden=false}}; }}
 document.getElementById('photos').addEventListener('click',e=>{
   const v=e.target.closest('[data-view]'), d=e.target.closest('[data-del]'), c=e.target.closest('#ph-clear');
   if(v){const p=PHOTOS.find(x=>x.id==v.getAttribute('data-view')); if(p){prev.src=p.url;prev.hidden=false;prev.scrollIntoView({block:'nearest'})}}
@@ -2526,9 +2560,10 @@ function applyMode(){
   document.getElementById('th-val').textContent=r?'CBM':'CFT';
   document.getElementById('tot-label').textContent=r?'Total CBM':'Total CFT';
   document.getElementById('grp-title').textContent='Sort';
-  document.getElementById('grp-h1').textContent=r?'Length':'Size';
+  document.getElementById('grp-h1').textContent=r?(gByGirth()?'Girth':'Length'):'Size';
   document.getElementById('grp-h3').textContent=r?'CBM':'CFT';
   document.getElementById('sort').textContent=r?'Sort by length':'Sort by first number';
+  document.getElementById('sort-g').style.display=r?'':'none';
 }
 function setMode(m){
   MODE=(m==='round'||m==='fix')?m:'sawn';
@@ -3984,7 +4019,7 @@ setTimeout(go,1800);})();
     if(!l.length)return null;
     var round=MODE==='round',rg=grList(),logs=[];
     l.forEach(function(v){
-      if(round){var r=roundVol(v);if(r)logs.push({key:r.m,cft:r.cft,cbm:r.cbm})}
+      if(round){var r=roundVol(v);if(r)logs.push({key:gByGirth()?r.g:r.m,cft:r.cft,cbm:r.cbm})}
       else{var p=parseSize(v),c=calc(v);if(p&&c!==null)logs.push({key:p.a,size:p.a+'x'+p.b,a:p.a,b:p.b,cft:c,cbm:0})}});
     if(!logs.length)return null;
     function sum(arr){var o={pcs:arr.length,cft:0,cbm:0};arr.forEach(function(x){o.cft+=x.cft;o.cbm+=x.cbm});return o}
@@ -3994,7 +4029,7 @@ setTimeout(go,1800);})();
       var bk=rg.map(function(x){return {label:grLabel(x),arr:[]}}),other=[];
       logs.forEach(function(x){var ok=false;for(var i=0;i<rg.length;i++){if(grInR(x.key,rg[i])){bk[i].arr.push(x);ok=true;break}}if(!ok)other.push(x)});
       if(other.length)bk.push({label:'Other',arr:other});
-      modes.range={label:'Range-wise (own rate for each range)',items:bk.filter(function(b){return b.arr.length}).map(function(b){var s=sum(b.arr);return {d:name+' ('+(round?'length ':'size ')+b.label+')',hsn:hsn,pcs:s.pcs,cft:s.cft,cbm:s.cbm,per:per}})};
+      modes.range={label:'Range-wise (own rate for each range)',items:bk.filter(function(b){return b.arr.length}).map(function(b){var s=sum(b.arr);return {d:name+' ('+(round?(gByGirth()?'girth ':'length '):'size ')+b.label+')',hsn:hsn,pcs:s.pcs,cft:s.cft,cbm:s.cbm,per:per}})};
     }
     if(round){
       var g={};logs.forEach(function(x){var k=x.key.toFixed(2);(g[k]=g[k]||[]).push(x)});
