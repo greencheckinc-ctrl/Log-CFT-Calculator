@@ -805,8 +805,8 @@ html.locked body{overflow:hidden}
 </dialog>
 
 <div class="box">
-  <label for="file">Sheet photos (add one or many)</label>
-  <input id="file" type="file" accept="image/*" multiple>
+  <label for="file">Sheet photos, Excel (.xlsx) or PDF (add one or many)</label>
+  <input id="file" type="file" accept="image/*,.xlsx,.xlsm,.csv,.pdf,application/pdf" multiple>
   <div id="photos"></div>
   <img id="prev" alt="" hidden>
   <div class="btnrow"><button id="go" type="button">Read sizes</button><button id="paste-open" type="button" class="alt">Paste sizes</button></div>
@@ -1261,6 +1261,118 @@ document.getElementById('print').onclick=()=>{
 
 
 const file=document.getElementById('file'), prev=document.getElementById('prev'), st=document.getElementById('status');
+
+// ---------- Import sizes from Excel (.xlsx/.csv) and text PDF ----------
+// Length 260 -> default length 2 m, row "60x52"; 360 -> default length 3 m, row "60x54". Each Excel sheet becomes its own saved file.
+const IMP_RE=/\.(xlsx|xlsm|csv|pdf)$/i, PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+async function zipRead(buf){
+  const dv=new DataView(buf), u=new Uint8Array(buf); let e=u.length-22;
+  while(e>=0&&dv.getUint32(e,true)!==0x06054b50) e--;
+  if(e<0) throw new Error('Not a valid .xlsx file');
+  const n=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true); const ent={};
+  for(let i=0;i<n;i++){
+    const nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true);
+    ent[new TextDecoder().decode(u.subarray(p+46,p+46+nl))]={m:dv.getUint16(p+10,true),cs:dv.getUint32(p+20,true),lo:dv.getUint32(p+42,true)};
+    p+=46+nl+xl+cl;
+  }
+  return async name=>{
+    const z=ent[name]; if(!z) throw new Error('Missing '+name);
+    const s=z.lo+30+dv.getUint16(z.lo+26,true)+dv.getUint16(z.lo+28,true), d=u.subarray(s,s+z.cs);
+    if(z.m===0) return new TextDecoder().decode(d);
+    if(typeof DecompressionStream==='undefined') throw new Error('This browser cannot open Excel files. Update the browser.');
+    return new TextDecoder().decode(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+  };
+}
+const xmlDoc=t=>new DOMParser().parseFromString(t,'application/xml');
+function colIdx(ref){let n=0;for(const ch of /^[A-Z]+/.exec(ref)[0]) n=n*26+ch.charCodeAt(0)-64; return n-1}
+async function xlsxSheets(buf){
+  const z=await zipRead(buf), wb=xmlDoc(await z('xl/workbook.xml')), rl=xmlDoc(await z('xl/_rels/workbook.xml.rels')), rel={};
+  [...rl.getElementsByTagName('Relationship')].forEach(r=>rel[r.getAttribute('Id')]=r.getAttribute('Target'));
+  let ss=[]; try{ss=[...xmlDoc(await z('xl/sharedStrings.xml')).getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join(''))}catch(e){}
+  const out=[];
+  for(const s of wb.getElementsByTagName('sheet')){
+    const tg=(rel[s.getAttribute('r:id')]||'').replace(/^\//,''), sh=xmlDoc(await z(tg.indexOf('xl/')===0?tg:'xl/'+tg)), grid=[];
+    [...sh.getElementsByTagName('row')].forEach(r=>{const a=[];
+      [...r.getElementsByTagName('c')].forEach(c=>{const v=c.getElementsByTagName('v')[0], t=c.getAttribute('t');
+        a[colIdx(c.getAttribute('r'))]= t==='s'&&v ? ss[+v.textContent] : t==='inlineStr' ? c.textContent : v ? v.textContent : null});
+      grid.push(a)});
+    out.push({name:s.getAttribute('name'),grid});
+  }
+  return out;
+}
+// rows of cells -> [[length cm, girth cm], ...]; uses the "Length"/"Girth" headings when present
+function gridPairs(grid){
+  const num=v=>{const n=parseFloat(String(v==null?'':v).replace(/,/g,''));return isNaN(n)?null:n};
+  let hi=-1,lc=-1,gc=-1;
+  for(let i=0;i<Math.min(grid.length,30)&&hi<0;i++){
+    lc=gc=-1; (grid[i]||[]).forEach((v,j)=>{const s=String(v||'').toLowerCase(); if(lc<0&&/length/.test(s)) lc=j; if(gc<0&&/girth/.test(s)) gc=j});
+    if(lc>=0&&gc>=0) hi=i;
+  }
+  const out=[];
+  grid.forEach((r,i)=>{
+    if(!r||i<=hi) return; let L=null,G=null;
+    if(hi>=0){L=num(r[lc]);G=num(r[gc])}
+    else{const ns=r.map(num).filter(x=>x!==null); if(ns.length>=3){L=ns[1];G=ns[2]} else if(ns.length===2){L=ns[0];G=ns[1]}}
+    if(L===null||G===null) return;
+    if(L<20) L*=100;   // length given in metres
+    if(L>=30&&L<=1500&&G>=10&&G<=500) out.push([Math.round(L),G]);
+  });
+  return out;
+}
+function impBase(){return Math.floor(fixedLenM())||2}
+function domBase(pairs){const c={}; pairs.forEach(p=>{const w=Math.floor(p[0]/100); c[w]=(c[w]||0)+1}); return +Object.keys(c).sort((a,b)=>c[b]-c[a])[0]}
+function pairsToRows(pairs,base){return pairs.map(([L,G])=>(Math.floor(L/100)===base?String(L-base*100).padStart(2,'0'):String(L))+'x'+G)}
+async function pdfPairs(buf){
+  if(!window.pdfjsLib){
+    await loadScript(PDFJS+'pdf.min.js');
+    const w=await (await fetch(PDFJS+'pdf.worker.min.js')).text();
+    pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([w],{type:'text/javascript'}));
+  }
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise, pairs=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent(), lines={};
+    tc.items.forEach(it=>{if(it.str.trim()){const y=Math.round(it.transform[5]/3); (lines[y]=lines[y]||[]).push([it.transform[4],it.str.trim()])}});
+    Object.keys(lines).map(Number).sort((a,b)=>b-a).forEach(y=>{
+      const txt=lines[y].sort((a,b)=>a[0]-b[0]).map(x=>x[1]).join(' '), m=[...txt.matchAll(/(\d{2,4})\s*[x×*]\s*(\d{2,3})(?!\d)/gi)];
+      if(m.length) m.forEach(k=>{let L=+k[1]; if(L<100) L=impBase()*100+L; pairs.push([L,+k[2]])});
+      else pairs.push(...gridPairs([txt.split(/\s+/)]));
+    });
+  }
+  return pairs;
+}
+async function importDocs(files){
+  if(!requireActive()) return;
+  const all=[]; let note='';
+  for(const f of files){
+    try{
+      st.textContent='Reading '+f.name+'...';
+      const bn=f.name.replace(/\.[^.]+$/,''), buf=await f.arrayBuffer();
+      if(/\.pdf$/i.test(f.name)||f.type==='application/pdf') all.push({name:bn,pairs:await pdfPairs(buf)});
+      else if(/\.csv$/i.test(f.name)) all.push({name:bn,pairs:gridPairs(new TextDecoder().decode(buf).split(/\r?\n/).map(l=>l.split(/[,;\t]/)))});
+      else (await xlsxSheets(buf)).forEach(s=>all.push({name:(files.length>1?bn+' - ':'')+s.name,pairs:gridPairs(s.grid)}));
+    }catch(e){note+=' '+f.name+': '+(e.message||'could not be read')+'.'}
+  }
+  const good=all.filter(s=>s.pairs.length);
+  if(!good.length){st.innerHTML='<span class="err">No length x girth sizes found.'+esc(note)+' (A scanned PDF has no text - add it as a photo instead.)</span>';return}
+  const base=domBase(good[0].pairs);
+  RS.len=String(base); RS.lu='m'; RS.gu='cm';
+  const li=document.getElementById('rs-len'); li.value=RS.len; document.getElementById('rs-lu').value='m'; document.getElementById('rs-gu').value='cm'; li.dispatchEvent(new Event('change'));
+  const f=readFiles(), names=[]; let logs=0;
+  good.forEach(s=>{
+    let n=s.name.slice(0,60),k=2; while(f[n]) n=s.name.slice(0,56)+' ('+(k++)+')';
+    f[n]={rows:pairsToRows(s.pairs,base),updated:Date.now(),mode:'round'}; names.push(n); logs+=s.pairs.length;
+  });
+  if(!writeFiles(f)) return;
+  try{fbSync()}catch(e){}
+  renderFiles();
+  await openFile(names[0]);
+  st.innerHTML='Imported <strong>'+logs+'</strong> logs in <strong>'+names.length+'</strong> sheet'+(names.length>1?'s (each saved as a separate file - open them from Files): ':': ')+esc(names.slice(0,8).join(', '))+(names.length>8?' ...':'')+'. Default length '+base+' m.'+esc(note);
+}
+file.addEventListener('change',e=>{
+  const docs=[...file.files].filter(f=>IMP_RE.test(f.name)||f.type==='application/pdf');
+  if(!docs.length) return;
+  e.stopImmediatePropagation(); file.value=''; importDocs(docs);
+},true);
 // ---------- Share the measurement sheet as a PDF (WhatsApp) ----------
 const HW='278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556 1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667 778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 333 556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556 556 333 500 278 556 500 722 500 500 500 334 260 334 584'.split(' ').map(Number), HBW='278 333 474 556 556 889 722 238 333 333 389 584 278 333 278 278 556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611 975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667 778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 333 556 611 556 611 556 333 611 611 278 278 556 278 889 611 611 611 611 389 556 333 611 556 778 556 556 500 389 280 389 584'.split(' ').map(Number);
 function makeSheetPdf(){
