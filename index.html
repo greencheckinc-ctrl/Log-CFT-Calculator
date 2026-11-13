@@ -912,7 +912,6 @@ html.locked body{overflow:hidden}
 
 <div class="box" id="phbox">
   <label for="file">Sheet photos (add one or many)</label>
-  <div id="ai-note" style="margin:0 2px 6px"></div>
   <p id="read-ai" style="margin:0 2px 8px;font-size:.8rem;line-height:1.35;color:var(--muted)"><b>Photo:</b> read using AI. <b>Excel / CSV / PDF:</b> read directly. Please check the result.</p>
   <button id="cam-btn" type="button" class="alt" style="width:100%;margin:0 0 8px">&#128247; Take photo (camera)</button>
   <input id="file-cam" type="file" accept="image/*" capture="environment" style="display:none">
@@ -2115,8 +2114,8 @@ function addPhoto(f){
 function renderPhotos(){
   phSaveSoon();
   const box=document.getElementById('photos');
-  if(!PHOTOS.length){box.innerHTML='<div class="phhead"><span id="ai-left"></span><button type="button" class="alt phx" id="ph-hist">&#128193; History</button></div>';aiLeftShow();prev.hidden=true;return}
-  box.innerHTML='<div class="phhead"><span style="display:flex;align-items:center;gap:8px"><b>'+PHOTOS.length+' photo'+(PHOTOS.length>1?'s':'')+'</b><span id="ai-left"></span></span><span class="phb"><button type="button" class="alt phx" id="ph-hist">&#128193; History</button><button type="button" class="alt phx" id="ph-clear">Remove all</button></span></div>'+
+  if(!PHOTOS.length){box.innerHTML='<div class="phhead"><span id="ai-left" style="flex:1;min-width:0"></span><button type="button" class="alt phx" id="ph-hist">&#128193; History</button></div>';aiLeftShow();prev.hidden=true;return}
+  box.innerHTML='<div class="phhead"><span style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap"><b>'+PHOTOS.length+' photo'+(PHOTOS.length>1?'s':'')+'</b><span id="ai-left"></span></span><span class="phb"><button type="button" class="alt phx" id="ph-hist">&#128193; History</button><button type="button" class="alt phx" id="ph-clear">Remove all</button></span></div>'+
     PHOTOS.map((p,i)=>{
       const cls=p.state==='error'?'err':(p.state==='done'?(p.warn?'warn':'ok'):''), txt=p.state==='new'?'Ready to read':(p.state==='reading'?('Reading... '+(p.pct||0)+'%'):p.msg);
       return '<div class="ph"><img src="'+p.url+'" alt="Photo '+(i+1)+'" data-view="'+p.id+'"><div class="phi"><div class="phn">Photo '+(i+1)+'</div><div class="phs '+cls+'">'+txt+'</div>'+((p.state==='done')?'<button type="button" class="alt phx" style="margin-top:6px" data-again="'+p.id+'">&#8635; Read again</button>':'')+'</div><button type="button" class="alt phd" data-del="'+p.id+'" aria-label="Remove photo">x</button></div>';
@@ -2218,7 +2217,7 @@ async function askTwo(msg,yes,no){   // confirm box with two clear choices (seco
   const n=document.getElementById('cf-no'), old=n.textContent; n.textContent=no;
   try{ return await askConfirm(msg,yes) } finally { n.textContent=old }
 }
-window.aiLeftShow=aiLeftShow; function aiLeftShow(){ const e=document.getElementById('ai-left'), nt=document.getElementById('ai-note'); const n=window.__aiLeft?window.__aiLeft():null; if(n===null){ if(e) e.innerHTML=''; if(nt) nt.innerHTML=''; return } let lim=0; try{ lim=(JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null')||{}).lim||0 }catch(x){} const used=Math.max(0,lim-n), bad=n===0, low=n>0&&n<=3, col=bad?'#b3261e':low?'#c77700':'#1f6b45'; if(e) e.innerHTML='<span style="display:inline-block;box-sizing:border-box;line-height:normal;padding:4px 10px;font-size:.8rem;font-weight:700;border-radius:8px;border:1px solid '+col+';background:'+(bad?'#fdecea':low?'#fff4e0':'#e8f5ee')+';color:'+col+';white-space:nowrap">AI '+used+' / '+lim+'</span>'; if(nt) nt.innerHTML='<div style="font-size:.72rem;line-height:1.3;color:'+(bad?'#b3261e':'var(--muted)')+'">'+(bad?'<b>AI image limit finished.</b> ':'AI images read: '+used+' of '+lim+' ('+n+' left). ')+'Need more? Please contact the developer.</div>' }
+window.aiLeftShow=aiLeftShow; function aiLeftShow(){ const e=document.getElementById('ai-left'); if(!e) return; const n=window.__aiLeft?window.__aiLeft():null; if(n===null){ e.innerHTML=''; return } let lim=0; try{ lim=(JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null')||{}).lim||0 }catch(x){} const used=Math.max(0,lim-n), bad=n===0, low=n>0&&n<=3, col=bad?'#b3261e':low?'#c77700':'#1f6b45'; e.innerHTML='<span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="display:inline-block;flex:none;box-sizing:border-box;line-height:normal;padding:4px 10px;font-size:.8rem;font-weight:700;border-radius:8px;border:1px solid '+col+';background:'+(bad?'#fdecea':low?'#fff4e0':'#e8f5ee')+';color:'+col+';white-space:nowrap">AI '+used+' / '+lim+'</span><span style="font-size:.66rem;line-height:1.2;color:'+(bad?'#b3261e':'var(--muted)')+'">'+(bad?'<b>AI images finished.</b>':'AI images read ('+n+' left).')+' Need more? Contact the developer.</span></span>' }
 const NOAI_MSG='Your AI image limit is finished. Please contact the developer to add more images.';
 async function photoReadAgain(p){   // optional: read a photo that was already read (uses 1 AI image)
   if(phBusy) return;
