@@ -912,7 +912,7 @@ html.locked body{overflow:hidden}
 
 <div class="box" id="phbox">
   <label for="file">Sheet photos (add one or many)</label>
-  <p id="read-ai" style="margin:0 2px 8px;font-size:.8rem;line-height:1.35;color:var(--muted)"><b>Photo:</b> read using AI. <b>Excel / CSV / PDF:</b> read directly. Please check the result.</p>
+  <p id="read-ai" style="margin:0 2px 8px;font-size:.8rem;line-height:1.35;color:var(--muted)"><b>Photo:</b> read using AI<span id="ai-left"></span>. <b>Excel / CSV / PDF:</b> read directly. Please check the result.</p>
   <button id="cam-btn" type="button" class="alt" style="width:100%;margin:0 0 8px">&#128247; Take photo (camera)</button>
   <input id="file-cam" type="file" accept="image/*" capture="environment" style="display:none">
   <input id="file" type="file" accept="image/*" multiple>
@@ -2217,8 +2217,11 @@ async function askTwo(msg,yes,no){   // confirm box with two clear choices (seco
   const n=document.getElementById('cf-no'), old=n.textContent; n.textContent=no;
   try{ return await askConfirm(msg,yes) } finally { n.textContent=old }
 }
+window.aiLeftShow=aiLeftShow; function aiLeftShow(){ const e=document.getElementById('ai-left'); if(!e) return; const n=window.__aiLeft?window.__aiLeft():null; e.innerHTML=(n===null)?'':' &mdash; <b style="color:'+(n===0?'#b3261e':'#1f6b45')+'">'+n+' AI image'+(n===1?'':'s')+' remaining</b>' }
+const NOAI_MSG='Your AI image limit is finished. Please contact the developer to add more images.';
 async function photoReadAgain(p){   // optional: read a photo that was already read (uses 1 AI image)
   if(phBusy) return;
+  if(window.__aiLeft&&window.__aiLeft()===0){ st.innerHTML='<span class="err">'+NOAI_MSG+'</span>'; aiLeftShow(); return }
   if(!(await askConfirm('Read this photo again?\n\nThis uses 1 more AI image. Without Premium, the free 50 entries/day limit still applies.','Read again'))) return;
   const old=[...rows.querySelectorAll('tr[data-pk="'+p.key+'"]')];
   if(old.length){
@@ -2410,7 +2413,11 @@ async function visionRead(data,mime,onTick){
     body={model:'claude-sonnet-5-5',max_tokens:6000,stream:true,
       messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:data}}].concat(EX.map(t=>({type:'image',source:{type:'base64',media_type:'image/jpeg',data:t}})),[{type:'text',text:prompt}])}]};
   }
-  const r=await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
+  let r;
+  if(PROVIDER!=='tesseract'&&window.__srvRead){   // photo goes through the developer's server: the AI key and the image limit stay there
+    const mdl=body.model||decodeURIComponent((url.match(/models\/([^:]+):/)||[])[1]||'');
+    r=await window.__srvRead(PROVIDER,mdl,body);
+  }else r=await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
   if(!r.ok){let j={};try{j=await r.json()}catch(x){} throw new Error((j.error&&j.error.message)||r.status)}
   let txt='',buf='';
   const rd=r.body.getReader(),dec=new TextDecoder();
@@ -2445,11 +2452,15 @@ document.getElementById('go').onclick=async()=>{
   if(!todo.length){st.innerHTML='All photos are already read. Add more photos to read them too.';return}
   st.textContent='Checking...'; if(window.__syncApiKey) await window.__syncApiKey();
   if(!curKey()){st.innerHTML='<span class="err">Photo reading is not enabled for this device. Please contact the developer.'+(pasteAllowed()?' You can still use Paste sizes.':'')+'</span>';return}
+  { const L=window.__aiLeft?window.__aiLeft():null; aiLeftShow();
+    if(L===0){ st.innerHTML='<span class="err">'+NOAI_MSG+'</span>'; return }
+    if(L!==null&&todo.length>L){ if(!(await askConfirm('Only '+L+' AI image'+(L===1?'':'s')+' remaining. The first '+L+' photo'+(L===1?'':'s')+' will be read; the rest stay unread.','Read '+L))) return; todo.length=L } }
   phBusy=true; const lines=[]; let allSum={s:0,c:0};
   const prog=document.getElementById('prog'), bar=document.getElementById('progbar');
   prog.hidden=false;
   for(let k=0;k<todo.length;k++){
     const p=todo[k], no=PHOTOS.indexOf(p)+1;
+    if(window.__aiLeft&&window.__aiLeft()===0){ p.state='new'; lines.push('<span class="err">'+NOAI_MSG+'</span>'); break }
     p.state='reading'; p.pct=0; renderPhotos();
     st.innerHTML='Reading photo '+no+' ('+(k+1)+' of '+todo.length+')...'+(lines.length?'<br>'+lines.join('<br>'):'');
     try{
@@ -2462,7 +2473,7 @@ document.getElementById('go').onclick=async()=>{
       const ph=(n)=>{p.pct=Math.min(98,Math.round(10+n*0.88)); bar.style.width=Math.round((k+p.pct/100)/todo.length*100)+'%'; const el=document.querySelectorAll('#photos .phs')[PHOTOS.indexOf(p)]; if(el) el.textContent='Reading... '+p.pct+'%'};
       if(PROVIDER!=='tesseract'&&MODE!=='fix'){ if(!p.tiles){ try{p.tiles=await makeTiles(p.f)}catch(x){p.tiles=[]} } window.__tiles=p.tiles; } else window.__tiles=[];
       let txt; try{ txt=await visionRead(data,mime,ph); } finally { window.__tiles=[]; }
-      try{ if(window.__countApiUse) window.__countApiUse() }catch(e){}   // usage count shown to the developer in the key generator
+      try{ if(window.__countApiUse) window.__countApiUse(); aiLeftShow() }catch(e){}   // usage count shown to the developer in the key generator
       txt=txt.replace(/<think>[\s\S]*?<\/think>/gi,'').replace(/```json|```/g,'').trim();
       { const a=txt.indexOf('['), b=txt.lastIndexOf(']'); if(a>-1&&b>a) txt=txt.slice(a,b+1); }
       if(MODE==='fix'){ const jr=JSON.parse(txt); const fr=fxAddRead(jr); p.state='done'; p.warn=fr.warn; p.msg=fr.msg; p.snap={mode:'fix',fxraw:jr,msg:fr.msg,warn:!!fr.warn}; phHistMark(p); lines.push('Photo '+no+': '+fr.msg); renderPhotos(); continue; }
@@ -3604,7 +3615,7 @@ window.__applyManagedKey=function(m){
 };
 try{ window.__applyManagedKey(JSON.parse(localStorage.getItem(MKEY)||'null')) }catch(e){ window.__applyManagedKey(null) }
 applyProvider();
-applyMode();
+applyMode(); addEventListener('load',function(){try{aiLeftShow()}catch(e){}});
 const hadFilesAtStart=Object.keys(readFiles()).length>0;
 update();
 fbSync().then(()=>{ if(!hadFilesAtStart) restoreLatest(); });
@@ -4132,8 +4143,10 @@ setTimeout(go,1800);})();
   // If the admin has sent a key for this device, activate automatically.
   // AI key for reading sheet photos: set / stopped / removed by the developer in the key generator
   function applyApiFrom(j){
-    var m=null; if(j&&j.apiKey&&j.apiOn!==false) m={prov:j.apiProv||'gemini',key:String(j.apiKey),model:j.apiModel||''};
+    try{ if(j&&(j.apiKey||j.apiHas)&&typeof j.apiLimit==='number') localStorage.setItem('logcft_apilim_v1',JSON.stringify({lim:j.apiLimit,uses:j.apiUses||0})); else localStorage.removeItem('logcft_apilim_v1') }catch(e){}
+    var m=null; if(j&&(j.apiKey||j.apiHas)&&j.apiOn!==false) m={prov:j.apiProv||'gemini',key:String(j.apiKey||'server'),model:j.apiModel||''};
     var syncPr=applySyncFrom(j);
+    try{ if(window.aiLeftShow) setTimeout(window.aiLeftShow,0) }catch(e){}
     try{ localStorage.setItem('logcft_paste_v1', j&&j.pasteOn===true?'1':'0') }catch(e){}   // Paste sizes: only when the developer switched it ON for this device
     if(window.__applyManagedKey) window.__applyManagedKey(m);
     try{ if(typeof flushApiUses==='function'&&pend()>0) flushApiUses() }catch(e){}
@@ -4148,12 +4161,26 @@ setTimeout(go,1800);})();
     try{
       while(pend()>0){
         var r=await fetch(node(),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiUses:{'.sv':{increment:1}},apiLast:Date.now()})});
-        if(!r.ok) break; setPend(pend()-1);
+        if(!r.ok) break; setPend(pend()-1); try{var c=JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null'); if(c){c.uses=(c.uses||0)+1; localStorage.setItem('logcft_apilim_v1',JSON.stringify(c))}}catch(e){}
       }
     }catch(e){}
     flushing=false;
   }
-  window.__countApiUse=function(){setPend(pend()+1); flushApiUses()};
+  window.__aiLeft=function(){   // null = no limit; otherwise images remaining
+    try{ var c=JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null'); if(!c||typeof c.lim!=='number') return null; return Math.max(0,c.lim-(c.uses||0)-pend()) }catch(e){ return null }
+  };
+  var WORKER='https://logcft-api.greencheckinc.workers.dev', srvDone=false;
+  window.__srvRead=async function(prov,model,body){
+    srvDone=false;
+    var r=await fetch(WORKER+'/webread',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:getDeviceId(),prov:prov,model:model,body:body})});
+    if(r.ok){
+      srvDone=true;   // the server counted this image
+      try{ var u=parseInt(r.headers.get('X-AI-Used'),10), l=parseInt(r.headers.get('X-AI-Limit'),10);
+        if(isFinite(l)&&isFinite(u)) localStorage.setItem('logcft_apilim_v1',JSON.stringify({lim:l,uses:u})); }catch(e){}
+    }
+    return r;
+  };
+  window.__countApiUse=function(){ if(srvDone){ srvDone=false; return } setPend(pend()+1); flushApiUses()};
   // Sync settings managed from the key generator: Database URL (developer only), Sync ID + token (both sides, newest wins)
   function applySyncFrom(j){
     try{
@@ -4181,6 +4208,7 @@ setTimeout(go,1800);})();
       var c=new AbortController(), t=setTimeout(function(){c.abort()},5000);
       var r=await fetch(node(),{cache:'no-store',signal:c.signal}); clearTimeout(t);
       if(r.ok) await applyApiFrom(await r.json());
+      try{ if(window.aiLeftShow) window.aiLeftShow() }catch(e){}
     }catch(e){}
   };
   async function checkKey(){
