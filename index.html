@@ -65,6 +65,7 @@ img#prev{max-width:100%;margin-top:8px;border-radius:4px}
 /* size keypad: digits plus x and - */
 #kp{position:fixed;left:0;right:0;bottom:0;z-index:900;background:var(--bg,#eef3ef);border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(0,0,0,.18);padding:6px 8px calc(8px + env(safe-area-inset-bottom,0px));touch-action:manipulation;user-select:none;-webkit-user-select:none}
 #kp[hidden]{display:none}
+#expbar[hidden]{display:none!important}
 #mi-kp{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%}
 #mi-kp .kpsw{display:flex;align-items:center;gap:8px;flex:none}
 #mi-kp .kpsw b{font-size:.8rem;letter-spacing:.04em}
@@ -553,6 +554,11 @@ html.locked body{overflow:hidden}
   </svg>
   <div class="ttl"><h1>Log CFT/CBM Calculator</h1><div class="by"><span>Developed by GreenCheck inc.</span><button type="button" id="daysbadge" class="dbadge" aria-label="Days left - open activation"></button></div></div>
 </header>
+<div id="expbar" hidden role="alert" style="display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px 10px;border-radius:10px;border:1px solid #d97706;background:#fff4e0;color:#7a3b00;font-size:.88rem;line-height:1.35">
+  <span id="exp-txt" style="flex:1;min-width:0"></span>
+  <button type="button" id="exp-go" style="flex:none;width:auto;min-height:0;margin:0;padding:5px 14px;font-size:.85rem"></button>
+  <button type="button" id="exp-x" class="alt" aria-label="Hide for today" style="flex:none;width:auto;min-height:0;margin:0;padding:3px 9px;font-size:1rem;line-height:1">&times;</button>
+</div>
 <nav class="menubar" aria-label="Main menu">
   <div class="menu">
     <button type="button" id="m-file" aria-haspopup="true" aria-expanded="false">File</button>
@@ -571,13 +577,14 @@ html.locked body{overflow:hidden}
     <button type="button" id="m-set" aria-haspopup="true" aria-expanded="false">Settings</button>
     <div class="dd" id="dd-set" role="menu">
       <button type="button" role="menuitem" id="mi-about">App info...</button>
+      <button type="button" role="menuitem" id="mi-guide">User guide</button>
       <hr>
       <button type="button" role="menuitem" id="mi-theme">Theme colour...</button>
       <button type="button" role="menuitem" id="mi-lock">App lock (PIN / Fingerprint)...</button>
       <button type="button" role="menuitemcheckbox" id="mi-kp" aria-checked="true"><span>Size keypad (x and - keys)</span><span class="kpsw"><b id="kp-st">ON</b><i class="sw" aria-hidden="true"></i></span></button>
       <button type="button" role="menuitem" id="mi-fb">Sync Setting...</button>
       <button type="button" role="menuitem" id="mi-email">My email...</button>
-      <button type="button" role="menuitem" id="mi-act">Activation key...</button>
+      <button type="button" role="menuitem" id="mi-act">Activation...</button>
     </div>
   </div>
 </nav>
@@ -695,7 +702,7 @@ html.locked body{overflow:hidden}
 </dialog>
 
 <dialog id="dlg-act">
-  <div class="tb">Activation key</div>
+  <div class="tb">Activation</div>
   <div class="bd">
     <p id="act-state" style="margin:0 0 8px"></p>
     <p style="margin:0 0 8px;font-size:.9rem">Your Device ID: <strong id="act-dev" style="letter-spacing:1px"></strong><br><small>Send this ID to the developer to get your personal activation key.</small></p>
@@ -3437,11 +3444,44 @@ function refreshAct(){
   const di=document.getElementById('act-dev'); if(di) di.textContent=getDeviceId();
   const t=ACTIVE?'Activated':(TRIAL_LEFT>0?'Trial: '+TRIAL_LEFT+' day'+(TRIAL_LEFT===1?'':'s')+' left':'Trial expired - activation required');
   const ab=document.getElementById('actbadge'); if(ab) ab.textContent=t;
-  document.getElementById('act-state').textContent=ACTIVE?('This copy is activated'+(ACT_INFO?': '+ACT_INFO:'')+'.'):(LIC_ERR?LIC_ERR+' ':'')+(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
+  const as=document.getElementById('act-state');
+  if(ACTIVE){
+    as.textContent='This copy is activated'+(ACT_INFO?': '+ACT_INFO:'')+'.';
+    const vm=/valid till (\d{4}-\d{2}-\d{2})/.exec(ACT_INFO||''), rb=document.createElement('b');
+    if(vm){
+      const rn=Math.max(0,Math.ceil((Date.parse(vm[1]+'T23:59:59')-Date.now())/DAY));
+      rb.textContent=rn+' day'+(rn===1?'':'s')+' remaining';
+      rb.style.color=rn<=7?'var(--bad)':'var(--ok)';
+    } else { rb.textContent='No expiry date'; rb.style.color='var(--ok)'; }
+    as.appendChild(document.createElement('br')); as.appendChild(document.createTextNode('Active license: ')); as.appendChild(rb);
+  } else as.textContent=(LIC_ERR?LIC_ERR+' ':'')+(TRIAL_LEFT>0?'Free trial: '+TRIAL_LEFT+' day(s) left. Enter an activation key to keep using the app after the trial.':'The 30-day trial has ended. The app will not work until you enter a valid activation key.');
   updateDaysBadge();
 }
 // Days-left counter in the header corner (next to "Developed by"): trial days, or licence days if the key has an end date
+function updateExpBar(){
+  const bar=document.getElementById('expbar'); if(!bar) return;
+  let n=null, txt='', btn='';
+  if(!BLOCKED){
+    if(ACTIVE){
+      const m=/valid till (\d{4}-\d{2}-\d{2})/.exec(ACT_INFO||'');
+      if(m){ const d=Math.max(0,Math.ceil((Date.parse(m[1]+'T23:59:59')-Date.now())/DAY));
+        if(d<=7){ n=d; btn='Renew'; txt=d===0?'Your license expires today ('+m[1]+'). Renew to keep using the app.':'Your license expires in '+d+' day'+(d===1?'':'s')+' (till '+m[1]+'). Renew now to avoid interruption.' } }
+    } else if(TRIAL_LEFT>0&&TRIAL_LEFT<=7){ n=TRIAL_LEFT; btn='Activate'; txt='Your free trial ends in '+TRIAL_LEFT+' day'+(TRIAL_LEFT===1?'':'s')+'. Activate to keep using the app.' }
+  }
+  let hide=false; const today=new Date().toISOString().slice(0,10);
+  try{ hide=localStorage.getItem('logcft_expx_v1')===today }catch(e){}
+  if(n===null||hide){ bar.hidden=true; return }
+  document.getElementById('exp-txt').textContent=txt; document.getElementById('exp-go').textContent=btn;
+  const crit=n<=3; bar.style.background=crit?'#fdeceb':'#fff4e0'; bar.style.borderColor=crit?'#b3261e':'#d97706'; bar.style.color=crit?'#7a1410':'#7a3b00';
+  bar.hidden=false;
+}
+(function(){
+  const g=document.getElementById('exp-go'), x=document.getElementById('exp-x');
+  if(g) g.onclick=()=>{const a=document.getElementById('mi-act'); if(a) a.click()};
+  if(x) x.onclick=()=>{try{localStorage.setItem('logcft_expx_v1',new Date().toISOString().slice(0,10))}catch(e){} document.getElementById('expbar').hidden=true};
+})();
 function updateDaysBadge(){
+  try{updateExpBar()}catch(e){}
   const b=document.getElementById('daysbadge'); if(!b) return;
   if(BLOCKED){b.style.display='none';return}
   let txt='',cls='';
@@ -3466,7 +3506,7 @@ function requireActive(){
   if(BLOCKED) return false;
   refreshAct();
   if(ACTIVE||TRIAL_LEFT>0) return true;
-  fmsg.textContent='Activation required. Open Settings > Activation key.';
+  fmsg.textContent='Activation required. Open Settings > Activation.';
   document.getElementById('act-msg').textContent='';
   document.getElementById('dlg-act').showModal();
   return false;
@@ -3497,6 +3537,12 @@ document.getElementById('act-go').onclick=async()=>{
 };
 document.getElementById('actkey').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('act-go').click()});
 document.getElementById('mi-act').onclick=()=>{closeMenus();document.getElementById('act-msg').textContent='';refreshAct();document.getElementById('dlg-act').showModal()};
+document.getElementById('mi-guide').onclick=()=>{
+  closeMenus();
+  const u='Log-CFT-CBM-User-Guide-Flipbook.html';      // keep this file in the same folder as index.html
+  let w=null; try{ w=window.open(u,'_blank') }catch(e){}
+  if(!w) location.href=u;
+};
 document.getElementById('mi-about').onclick=()=>{closeMenus();refreshAct();document.getElementById('dlg-about').showModal()};
 refreshAct();
 function lockIfExpired(){
@@ -4354,14 +4400,19 @@ setTimeout(go,1800);})();
     m.textContent='Opening payment...';
     try{await loadRzp()}catch(e){m.innerHTML='<span class="err">Could not load the payment window. Check your internet and try again.</span>';return}
     var did=getDeviceId();
+    // A <dialog> opened with showModal() sits in the browser's top layer, above everything, so the Razorpay window would open behind it.
+    // So the dialog is closed while paying and reopened afterwards.
+    var dlg=$('dlg-act'), wasOpen=!!(dlg&&dlg.open);
+    function back(){ try{ if(wasOpen&&dlg&&!dlg.open) dlg.showModal() }catch(e){} }
     var rz=new window.Razorpay({
       key:RZP.key, amount:Math.round(P.total*100), currency:'INR', name:RZP.name, description:desc,
       prefill:{name:nm,email:em},
       notes:{device_id:did,email:em,name:nm,items:desc,license_months:P.lic?String(P.mo):'0',subtotal:String(P.sub),gst:String(P.gst),ai_pack:P.ai||'none',ai_images_per_year:P.ai?String(RZP.images[P.ai]):'0',total:String(P.total)},
       theme:{color:(window.__th&&window.__th.c)||'#1f6b45'},
-      modal:{ondismiss:function(){if(!/received/i.test(m.textContent))m.textContent='Payment cancelled.'}},
+      modal:{ondismiss:function(){back(); if(!/received/i.test(m.textContent))m.textContent='Payment cancelled.'}},
       handler:async function(r){
         var pid=r&&r.razorpay_payment_id||'';
+        back();
         try{localStorage.setItem('logcft_pay_v1',JSON.stringify({id:pid,ts:Date.now()}))}catch(e){}
         m.innerHTML='<span style="color:var(--ok)">Payment received (ID: '+esc(pid)+'). Telling the developer...</span>';
         try{
@@ -4377,6 +4428,7 @@ setTimeout(go,1800);})();
       var d=(r&&r.error&&r.error.description)||'Payment failed.';
       m.innerHTML='<span class="err">'+esc(d)+' Please try again.</span>';
     });
+    if(wasOpen) dlg.close();
     rz.open();
   }
   (function(){

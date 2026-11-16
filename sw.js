@@ -1,6 +1,6 @@
 // Log CFT Calculator - service worker
 // Pages: network first (so updates arrive), cache fallback (works offline).
-// API calls to other sites (OpenAI / Anthropic / Firebase) are never touched.
+// API calls to other sites (OpenAI / Anthropic / Firebase / Razorpay) are never touched.
 const CACHE = 'logcft-v1';
 const PRECACHE = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
@@ -24,6 +24,14 @@ self.addEventListener('fetch', e => {
     fetch(req).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('./') : undefined)))
+    }).catch(() => caches.match(req).then(r => {
+      if (r) return r;
+      if (req.mode !== 'navigate') return undefined;
+      // The user guide is a big separate page: it is saved the first time it is opened online.
+      if (/User-Guide/i.test(url.pathname)) {
+        return new Response('<meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;padding:24px"><h3>User guide</h3><p>Please connect to the internet and open the guide once. After that it also works offline.</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      }
+      return caches.match('./');
+    }))
   );
 });
