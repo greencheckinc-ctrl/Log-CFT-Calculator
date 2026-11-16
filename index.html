@@ -265,11 +265,12 @@ body.rft .etbl th:nth-child(3),body.rft .etbl td:nth-child(3){width:58px;padding
 .apphead .logo{width:56px;height:56px;flex:none;display:block;overflow:hidden;border-radius:14px;border:2px solid rgba(255,255,255,.6)}
 .apphead .ttl{flex:1;min-width:0;text-align:left;line-height:1.15}
 .apphead h1{margin:0;color:#fff;font-size:1.45rem;font-weight:700;letter-spacing:-.01em}
-.apphead .by{color:rgba(255,255,255,.9);font-size:.78rem;font-weight:500;margin-top:3px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 8px}
+.apphead .by{color:rgba(255,255,255,.9);font-size:.78rem;font-weight:500;margin-top:3px;display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:4px 8px}
+.apphead .by>span{white-space:nowrap}
 .apphead .dbadge{display:none;margin:0 0 0 auto;padding:2px 10px;min-height:0;width:auto;border-radius:999px;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.2);color:#fff;font:inherit;font-size:.72rem;font-weight:700;line-height:1.5;white-space:nowrap;cursor:pointer;box-shadow:none}
 .apphead .dbadge.warn{background:#d97706;border-color:#fff}
 .apphead .dbadge.crit{background:#b3261e;border-color:#fff}
-.fbdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;background:#b8c2bb;box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.fbdot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;position:relative;top:-1px;background:#b8c2bb;box-shadow:0 0 0 1px rgba(255,255,255,.6)}
 .fbdot.on{background:#22c55e}
 .fbdot.off{background:#ef2f2f}
 .menubar{background:var(--wood);box-shadow:0 2px 8px rgba(0,0,0,.18)}
@@ -2148,6 +2149,7 @@ function renderPhotos(){
       const cls=p.state==='error'?'err':(p.state==='done'?(p.warn?'warn':'ok'):''), txt=p.state==='new'?'Ready to read':(p.state==='reading'?('Reading... '+(p.pct||0)+'%'):p.msg);
       return '<div class="ph"><img src="'+p.url+'" alt="Photo '+(i+1)+'" data-view="'+p.id+'"><div class="phi"><div class="phn">Photo '+(i+1)+'</div><div class="phs '+cls+'">'+txt+'</div>'+((p.state==='done')?'<button type="button" class="alt phx" style="margin-top:6px" data-again="'+p.id+'">&#8635; Read again</button>':'')+'</div><button type="button" class="alt phd" data-del="'+p.id+'" aria-label="Remove photo">x</button></div>';
     }).join('');
+  try{aiLeftShow()}catch(e){}
 }
 file.onchange=()=>{
   [...file.files].forEach(addPhoto);
@@ -2245,7 +2247,7 @@ async function askTwo(msg,yes,no){   // confirm box with two clear choices (seco
   const n=document.getElementById('cf-no'), old=n.textContent; n.textContent=no;
   try{ return await askConfirm(msg,yes) } finally { n.textContent=old }
 }
-window.aiLeftShow=aiLeftShow; function aiLeftShow(){ const e=document.getElementById('ai-left'); if(!e) return; const n=window.__aiLeft?window.__aiLeft():null; if(n===null){ e.innerHTML=''; return } let lim=0; try{ lim=(JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null')||{}).lim||0 }catch(x){} const used=Math.max(0,lim-n), bad=n===0, low=n>0&&n<=3, col=bad?'#b3261e':low?'#c77700':'#1f6b45'; e.innerHTML='<span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="display:inline-block;flex:none;box-sizing:border-box;line-height:normal;padding:4px 10px;font-size:.8rem;font-weight:700;border-radius:8px;border:1px solid '+col+';background:'+(bad?'#fdecea':low?'#fff4e0':'#e8f5ee')+';color:'+col+';white-space:nowrap">AI '+used+' / '+lim+'</span><span style="font-size:.66rem;line-height:1.2;color:'+(bad?'#b3261e':'var(--muted)')+'">'+(bad?'<b>AI images finished.</b>':'AI images read ('+n+' left).')+' Need more? Contact the developer.</span></span>' }
+window.aiLeftShow=aiLeftShow; function aiLeftShow(){ const e=document.getElementById('ai-left'); if(!e) return; const n=window.__aiLeft?window.__aiLeft():null; if(n===null){ e.innerHTML=''; return } let lim=0; try{ lim=(JSON.parse(localStorage.getItem('logcft_apilim_v1')||'null')||{}).lim||0 }catch(x){} const used=Math.max(0,lim-n), bad=n===0, low=n>0&&n<=3, col=bad?'#b3261e':low?'#c77700':'#1f6b45', compact=!!document.querySelector('#photos .phb'); e.innerHTML='<span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="display:inline-block;flex:none;box-sizing:border-box;line-height:normal;padding:4px 10px;font-size:.8rem;font-weight:700;border-radius:8px;border:1px solid '+col+';background:'+(bad?'#fdecea':low?'#fff4e0':'#e8f5ee')+';color:'+col+';white-space:nowrap">AI '+used+' / '+lim+'</span>'+(compact?'':'<span style="font-size:.66rem;line-height:1.2;color:'+(bad?'#b3261e':'var(--muted)')+'">'+(bad?'<b>AI images finished.</b>':'AI images read ('+n+' left).')+' Need more? Contact the developer.</span>')+'</span>' }
 const NOAI_MSG='Your AI image limit is finished. Please contact the developer to add more images.';
 async function photoReadAgain(p){   // optional: read a photo that was already read (uses 1 AI image)
   if(phBusy) return;
